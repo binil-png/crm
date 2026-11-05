@@ -177,6 +177,23 @@ export const useCrmStore = create((set, get) => ({
     return next;
   },
 
+  rescheduleSession: async (session, start, end) => {
+    const nextStart = new Date(start);
+    const nextEnd = new Date(end);
+    if (session.Calendar_Event_ID) {
+      try {
+        await patchCalendarEvent(session.Calendar_Event_ID, { start: nextStart, end: nextEnd });
+      } catch (error) {
+        console.warn(error);
+      }
+    }
+    return get().updateSession(session.Session_ID, {
+      Start_Time: nextStart.toISOString(),
+      End_Time: nextEnd.toISOString(),
+      Status: session.Status === 'Completed' || session.Status === 'Cancelled' ? session.Status : 'Rescheduled',
+    });
+  },
+
   completeSession: async (session) => {
     return get().updateSession(session.Session_ID, { Status: 'Completed' });
   },

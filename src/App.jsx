@@ -7,6 +7,7 @@ import Navbar from './components/shared/Navbar';
 import CommunicationPanel from './components/shared/CommunicationPanel';
 import LeadKanban from './components/sales/LeadKanban';
 import ClientList from './components/training/ClientList';
+import TrainingCalendar from './components/training/TrainingCalendar';
 import SessionList from './components/training/SessionList';
 import WorkLogForm from './components/worklog/WorkLogForm';
 
@@ -42,7 +43,8 @@ export default function App() {
     { id: 'messages', label: 'Interaction History' },
   ];
   const trainingTabs = [
-    { id: 'main', label: 'Passed clients' },
+    { id: 'main', label: 'Calendar' },
+    { id: 'clients', label: 'Passed clients' },
     { id: 'sessions', label: 'Sessions' },
     { id: 'worklog', label: 'Work log / Leave' },
     { id: 'messages', label: 'Interaction History' },
@@ -52,7 +54,7 @@ export default function App() {
   return (
     <div className="min-h-screen">
       <Navbar />
-      <main className="mx-auto max-w-7xl px-4 py-6">
+      <main className="mx-auto max-w-[1500px] px-4 py-6">
         {error || dataError ? (
           <p className="mb-4 rounded bg-rose-50 p-3 text-sm text-rose-700">{error || dataError}</p>
         ) : null}
@@ -73,7 +75,8 @@ export default function App() {
         {loading ? <p className="mb-4 text-sm text-slate-500">Syncing Google data…</p> : null}
 
         {role === ROLES.SALES && tab === 'main' ? <LeadKanban /> : null}
-        {role === ROLES.TRAINING && tab === 'main' ? <ClientList /> : null}
+        {role === ROLES.TRAINING && tab === 'main' ? <TrainingCalendar /> : null}
+        {role === ROLES.TRAINING && tab === 'clients' ? <ClientList /> : null}
         {role === ROLES.TRAINING && tab === 'sessions' ? (
           <section>
             <h2 className="mb-3 text-lg font-semibold">All training sessions</h2>

@@ -10,7 +10,7 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+      <div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-3 px-4 py-3">
         <div>
           <p className="text-sm font-semibold">Sheets CRM</p>
           <p className="text-xs text-slate-500">Google Sheets + Calendar, no backend</p>
