@@ -7,6 +7,7 @@ import {
   appendStageComment,
   createId,
   formatDdMmYyyy,
+  formatDdMmYyyyHm,
   objectToRow,
   rowsToObjects,
   sameDay,
@@ -49,6 +50,13 @@ const leadRow = (sheet, values) => {
 
 const seedDb = () => {
   const today = formatDdMmYyyy(new Date());
+  const soon = new Date(Date.now() + 4 * 60 * 1000);
+  const later = new Date();
+  later.setHours(17, 0, 0, 0);
+  if (later.getTime() <= Date.now()) later.setDate(later.getDate() + 1);
+  const overdue = new Date();
+  overdue.setDate(overdue.getDate() - 1);
+  overdue.setHours(10, 30, 0, 0);
   const clientId = createId('CL');
   const pendingClientId = createId('CL');
   const start = new Date();
@@ -100,7 +108,8 @@ const seedDb = () => {
         Specialization: 'Dentistry',
         Region: 'Domestic',
         Status: 'No Response',
-        Comments: 'Stage 1 (16/07/2019) Called Dr Prakash and not reachable at the moment',
+        'Scheduled Date': formatDdMmYyyyHm(soon),
+        Comments: 'Stage 1 (16/07/2019) Called Dr Prakash and not reachable at the moment\nStage 2 Callback scheduled\n',
       }),
     ],
     SUNISH: [
@@ -133,7 +142,7 @@ const seedDb = () => {
         Specialization: 'Dermatology',
         Region: 'Domestic',
         Status: 'Demo Scheduled',
-        'Scheduled Date': today,
+        'Scheduled Date': formatDdMmYyyyHm(later),
         Comments: 'Stage 1 Demo scheduled today at 5pm',
       }),
       leadRow('SUNISH', {
@@ -146,7 +155,8 @@ const seedDb = () => {
         Source: 'Tech Jocky',
         Region: 'Domestic',
         Status: 'Follow up for Demo',
-        Comments: 'Stage 1 Waiting to confirm demo slot',
+        'Scheduled Date': formatDdMmYyyyHm(overdue),
+        Comments: 'Stage 1 Waiting to confirm demo slot\nStage 2 Call scheduled\n',
       }),
       leadRow('SUNISH', {
         'Sl No': '4',

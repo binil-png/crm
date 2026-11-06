@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
+import useNow from '../../hooks/useNow';
 import {
   LEAD_HEADERS,
   LEAD_SOURCES,
@@ -12,12 +13,18 @@ import {
   STATUS_GROUPS,
   findClientForLead,
   formatDdMmYyyy,
+  formatScheduleRelative,
+  getCallScheduleState,
+  getLeadScheduleAt,
   leadKey,
   parseStageComments,
   pipelineColor,
 } from '../../utils/constants';
 import LeadModal from './LeadModal';
 import SalesCloseModal from './SalesCloseModal';
+import CallAlerts from './CallAlerts';
+import CallScheduleSidebar from './CallScheduleSidebar';
+import ScheduleDateTimeFields from './ScheduleDateTimeFields';
 import Modal from '../shared/Modal';
 
 const PAGE_SIZE = 50;
@@ -25,6 +32,7 @@ const PAGE_SIZE = 50;
 export default function LeadKanban() {
   const { user } = useAuth();
   const { leads, leadSheets, createLead, clients } = useCrmStore();
+  const now = useNow(15000);
   const [group, setGroup] = useState('All');
   const [status, setStatus] = useState('All');
   const [sheet, setSheet] = useState('All');
@@ -151,6 +159,10 @@ export default function LeadKanban() {
         </select>
       </div>
 
+      <CallAlerts leads={leads} now={now} onSelect={setSelected} />
+
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div>
       <div className="max-h-[70vh] overflow-auto rounded border border-slate-300 bg-white">
         <table className="min-w-[1400px] w-full border-collapse text-left text-sm">
           <thead className="sticky top-0 bg-slate-50 text-xs uppercase text-slate-500">
@@ -158,7 +170,7 @@ export default function LeadKanban() {
               <th className="border border-slate-300 px-2 py-2">Sheet</th>
               {LEAD_HEADERS.map((header) => (
                 <th key={header} className="whitespace-nowrap border border-slate-300 px-2 py-2">
-                  {header}
+                  {header === 'Scheduled Date' ? 'Scheduled Date / Time' : header}
                 </th>
               ))}
             </tr>
@@ -189,6 +201,8 @@ export default function LeadKanban() {
                           >
                             {header === 'Sheet' ? (
                               <span className="text-xs text-slate-500">{lead._sheet}</span>
+                            ) : header === 'Scheduled Date' ? (
+                              <ScheduleStamp lead={lead} now={now} />
                             ) : header === 'Status' ? (
                               <div>
                                 <span className={`rounded px-2 py-0.5 text-xs ${pipelineColor(lead.Status)}`}>{lead.Status}</span>
@@ -247,6 +261,9 @@ export default function LeadKanban() {
           </button>
         </div>
       </div>
+      </div>
+      <CallScheduleSidebar leads={leads} now={now} onSelect={setSelected} />
+      </div>
 
       {creating ? (
         <CreateLeadModal
@@ -274,6 +291,27 @@ export default function LeadKanban() {
 
       {closing ? <SalesCloseModal lead={closing} onClose={() => setClosing(null)} /> : null}
     </section>
+  );
+}
+
+function ScheduleStamp({ lead, now }) {
+  const at = getLeadScheduleAt(lead);
+  const state = getCallScheduleState(lead, now);
+  if (!lead['Scheduled Date']) return '—';
+  return (
+    <div>
+      <p>{at ? formatDdMmYyyy(at) : lead['Scheduled Date']}</p>
+      {at ? <p className="text-xs font-medium text-slate-700">{at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p> : null}
+      {state === 'overdue' ? (
+        <p className="mt-1 text-[11px] font-medium text-rose-700">Overdue · {formatScheduleRelative(at, now)}</p>
+      ) : null}
+      {state === 'soon' ? (
+        <p className="mt-1 text-[11px] font-medium text-amber-700">Starts {formatScheduleRelative(at, now)}</p>
+      ) : null}
+      {state === 'upcoming' ? (
+        <p className="mt-1 text-[11px] text-sky-700">{formatScheduleRelative(at, now)}</p>
+      ) : null}
+    </div>
   );
 }
 
@@ -448,6 +486,12 @@ function CreateLeadModal({ user, leadSheets, executives, onClose, onCreate }) {
             onChange={(e) => setForm((prev) => ({ ...prev, Country: e.target.value }))}
           />
         </label>
+        <div className="md:col-span-2">
+          <ScheduleDateTimeFields
+            value={form['Scheduled Date']}
+            onChange={(next) => setForm((prev) => ({ ...prev, 'Scheduled Date': next }))}
+          />
+        </div>
         <button type="submit" disabled={busy} className="md:col-span-2 rounded bg-slate-900 px-4 py-2 text-white">
           {busy ? 'Saving…' : 'Create lead'}
         </button>

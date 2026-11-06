@@ -10,8 +10,11 @@ import {
   SPECIALIZATIONS,
   appendStageComment,
   findClientForLead,
-  formatDdMmYyyy,
+  formatDdMmYyyyHm,
+  formatScheduleRelative,
   fromLocalInput,
+  getCallScheduleState,
+  getLeadScheduleAt,
   isClosedStatus,
   isDemoStatus,
   leadKey,
@@ -20,14 +23,19 @@ import {
   toLocalInput,
 } from '../../utils/constants';
 import Modal from '../shared/Modal';
+import ScheduleDateTimeFields from './ScheduleDateTimeFields';
 
 export default function LeadModal({ lead, onClose, onCloseDeal }) {
   const { user } = useAuth();
-  const { updateLead, passToTraining, clients } = useCrmStore();
+  const { updateLead, passToTraining, scheduleCall, clients } = useCrmStore();
   const [form, setForm] = useState({ ...lead });
   const [stageNote, setStageNote] = useState('');
   const [demoStart, setDemoStart] = useState(toLocalInput(lead['Scheduled Date']) || toLocalInput(new Date().toISOString()));
   const [demoEnd, setDemoEnd] = useState(toLocalInput(new Date(Date.now() + 60 * 60 * 1000).toISOString()));
+  const [callStart, setCallStart] = useState(
+    toLocalInput(lead['Scheduled Date']) || toLocalInput(new Date(Date.now() + 30 * 60 * 1000).toISOString())
+  );
+  const [callMinutes, setCallMinutes] = useState(30);
   const [attendees, setAttendees] = useState([lead['Email ID'], user?.email].filter(Boolean).join(', '));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -36,6 +44,8 @@ export default function LeadModal({ lead, onClose, onCloseDeal }) {
   const actions = nextSalesActions(form.Status);
   const closed = isClosedStatus(form.Status);
   const trainingClient = findClientForLead(clients, form);
+  const scheduleAt = getLeadScheduleAt(form);
+  const scheduleState = getCallScheduleState(form, new Date());
 
   const persist = async (next, note) => {
     const comments = note ? appendStageComment(next.Comments, note) : next.Comments;
@@ -80,8 +90,32 @@ export default function LeadModal({ lead, onClose, onCloseDeal }) {
         }
       }
       const note = stageNote || `Status changed to ${status}`;
-      const scheduled = status === 'Demo Scheduled' ? formatDdMmYyyy(new Date(demoStart)) : form['Scheduled Date'];
+      const scheduled = status === 'Demo Scheduled' ? formatDdMmYyyyHm(new Date(demoStart)) : form['Scheduled Date'];
       await persist({ ...form, Status: status, 'Scheduled Date': scheduled }, note);
+      setStageNote('');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const bookCall = async () => {
+    if (!callStart) {
+      setError('Set a date and time for the call.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const start = fromLocalInput(callStart);
+      const end = new Date(new Date(start).getTime() + callMinutes * 60 * 1000).toISOString();
+      const saved = await scheduleCall(form, {
+        start,
+        end,
+        note: stageNote || `Call scheduled for ${formatDdMmYyyyHm(new Date(start))}`,
+      });
+      setForm(saved);
       setStageNote('');
     } catch (err) {
       setError(err.message);
@@ -107,6 +141,16 @@ export default function LeadModal({ lead, onClose, onCloseDeal }) {
   return (
     <Modal title={`${form['Customer Name']} · ${form._sheet} #${form['Sl No']}`} onClose={onClose} wide>
       {error ? <p className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
+      {scheduleState === 'overdue' ? (
+        <p className="mb-3 rounded border border-rose-200 bg-rose-50 p-2 text-sm text-rose-800">
+          Overdue: this call was scheduled for {scheduleAt.toLocaleString()} ({formatScheduleRelative(scheduleAt)}).
+        </p>
+      ) : null}
+      {scheduleState === 'soon' ? (
+        <p className="mb-3 rounded border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900">
+          Starting soon: call {lead['Customer Name']} {formatScheduleRelative(scheduleAt)}.
+        </p>
+      ) : null}
 
       <div className="grid gap-3 md:grid-cols-2">
         {[
@@ -191,15 +235,19 @@ export default function LeadModal({ lead, onClose, onCloseDeal }) {
             ))}
           </select>
         </label>
-        <label className="block text-sm">
-          Scheduled Date
-          <input
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-            value={form['Scheduled Date'] || ''}
-            onChange={(e) => setField('Scheduled Date', e.target.value)}
-            placeholder="DD/MM/YYYY"
+        <div className="md:col-span-2">
+          <ScheduleDateTimeFields
+            value={form['Scheduled Date']}
+            onChange={(next) => {
+              setField('Scheduled Date', next);
+              const local = toLocalInput(next);
+              if (local) {
+                setCallStart(local);
+                setDemoStart(local);
+              }
+            }}
           />
-        </label>
+        </div>
         <div className="md:col-span-2 rounded border border-slate-200 p-3">
           <p className="text-sm font-medium">Comments</p>
           <div className="mt-2 space-y-1">
@@ -242,6 +290,48 @@ export default function LeadModal({ lead, onClose, onCloseDeal }) {
           </div>
         </div>
       </div>
+
+      {!closed ? (
+        <div className="mt-4 rounded border border-slate-200 p-3">
+          <p className="text-sm font-medium">Schedule a call</p>
+          <p className="text-xs text-slate-500">Saves the time on the lead and creates a calendar event.</p>
+          <div className="mt-2 grid gap-3 md:grid-cols-2">
+            <div className="md:col-span-2">
+              <ScheduleDateTimeFields
+                value={callStart}
+                onChange={(next) => {
+                  setCallStart(toLocalInput(next));
+                  setField('Scheduled Date', next);
+                }}
+                dateLabel="Call date"
+                timeLabel="Call time"
+              />
+            </div>
+            <label className="text-sm">
+              Duration
+              <select
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+                value={callMinutes}
+                onChange={(e) => setCallMinutes(Number(e.target.value))}
+              >
+                {[15, 30, 45, 60].map((item) => (
+                  <option key={item} value={item}>
+                    {item} min
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={bookCall}
+            className="mt-3 rounded bg-sky-700 px-3 py-2 text-sm text-white disabled:opacity-50"
+          >
+            {busy ? 'Scheduling…' : 'Schedule call'}
+          </button>
+        </div>
+      ) : null}
 
       {isDemoStatus(form.Status) || form.Status === 'Demo Scheduled' ? (
         <div className="mt-4 rounded border border-slate-200 p-3">

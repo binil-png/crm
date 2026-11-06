@@ -3,10 +3,21 @@ import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
 import { ROLES, ROLE_LABELS } from '../../utils/constants';
 import { isDemoMode } from '../../services/googleApi';
+import useNow from '../../hooks/useNow';
+
+const formatSynced = (at, now) => {
+  if (!at) return 'Waiting for first sync';
+  const seconds = Math.max(0, Math.round((now.getTime() - at) / 1000));
+  if (seconds < 10) return 'Live · just now';
+  if (seconds < 60) return `Live · ${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  return `Live · ${minutes}m ago`;
+};
 
 export default function Navbar() {
   const { user, role, switchRole, logout } = useAuth();
-  const { refreshAll, loading } = useCrmStore();
+  const { refreshAll, loading, syncing, lastSyncedAt } = useCrmStore();
+  const now = useNow(10000);
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white">
@@ -30,14 +41,19 @@ export default function Navbar() {
             ))}
           </div>
 
-          <button
-            type="button"
-            onClick={() => refreshAll().catch(() => {})}
-            className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-xs"
-          >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <p className="hidden text-xs text-slate-500 sm:block">
+              {syncing && !loading ? 'Updating…' : formatSynced(lastSyncedAt, now)}
+            </p>
+            <button
+              type="button"
+              onClick={() => refreshAll().catch(() => {})}
+              className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-xs"
+            >
+              <RefreshCw size={14} className={loading || syncing ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+          </div>
 
           <div className="flex items-center gap-2 text-sm">
             {user?.picture ? (

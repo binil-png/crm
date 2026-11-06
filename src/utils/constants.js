@@ -235,6 +235,8 @@ export const DISCOVERY_DOCS = [
   'https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest',
 ];
 
+export const POLL_INTERVAL_MS = 20000;
+
 export const STORAGE_KEYS = {
   TOKEN: 'crm_access_token',
   TOKEN_EXP: 'crm_token_exp',
@@ -244,7 +246,7 @@ export const STORAGE_KEYS = {
   API_KEY: 'crm_google_api_key',
   SPREADSHEET_ID: 'crm_spreadsheet_id',
   DEMO_MODE: 'crm_demo_mode',
-  MOCK_DB: 'crm_mock_db_v3',
+  MOCK_DB: 'crm_mock_db_v4',
 };
 
 export const createId = (prefix) =>
@@ -262,11 +264,75 @@ export const formatDdMmYyyy = (value = new Date()) => {
   return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
 };
 
+export const formatDdMmYyyyHm = (value = new Date()) => {
+  const date = value instanceof Date ? value : parseSheetDate(value);
+  if (!date) return String(value || '');
+  return `${formatDdMmYyyy(date)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+export const CALL_SOON_MS = 5 * 60 * 1000;
+
+export const hasClockTime = (value) => /\d{1,2}:\d{2}/.test(String(value || ''));
+
+export const getLeadScheduleAt = (lead) => {
+  const raw = lead?.['Scheduled Date'];
+  if (!raw) return null;
+  const date = parseSheetDate(raw);
+  if (!date) return null;
+  if (!hasClockTime(raw)) date.setHours(9, 0, 0, 0);
+  return date;
+};
+
+export const getCallScheduleState = (lead, now = new Date()) => {
+  if (!lead || isClosedStatus(lead.Status)) return 'none';
+  const at = getLeadScheduleAt(lead);
+  if (!at) return 'none';
+  const diff = at.getTime() - now.getTime();
+  if (diff < 0) return 'overdue';
+  if (diff <= CALL_SOON_MS) return 'soon';
+  return 'upcoming';
+};
+
+export const formatScheduleRelative = (date, now = new Date()) => {
+  if (!date) return '—';
+  const ms = date.getTime() - now.getTime();
+  const mins = Math.round(Math.abs(ms) / 60000);
+  if (mins < 1) return ms < 0 ? 'just passed' : 'now';
+  if (mins < 60) return ms < 0 ? `${mins} min overdue` : `in ${mins} min`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return ms < 0 ? `${hours}h overdue` : `in ${hours}h`;
+  const days = Math.round(hours / 24);
+  return ms < 0 ? `${days}d overdue` : `in ${days}d`;
+};
+
 export const toLocalInput = (value) => {
   if (!value) return '';
   const date = parseSheetDate(value);
   if (!date) return '';
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+export const toDateInput = (value) => {
+  const date = value instanceof Date ? value : parseSheetDate(value);
+  if (!date) return '';
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
+export const toTimeInput = (value) => {
+  if (value instanceof Date) return `${pad(value.getHours())}:${pad(value.getMinutes())}`;
+  if (!hasClockTime(value)) return '';
+  const date = parseSheetDate(value);
+  if (!date) return '';
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+export const combineDateAndTime = (dateInput, timeInput) => {
+  if (!dateInput && !timeInput) return '';
+  const datePart = dateInput || toDateInput(new Date());
+  const [year, month, day] = datePart.split('-').map(Number);
+  if (!timeInput) return formatDdMmYyyy(new Date(year, month - 1, day));
+  const [hour = 0, minute = 0] = timeInput.split(':').map(Number);
+  return formatDdMmYyyyHm(new Date(year, month - 1, day, hour, minute));
 };
 
 export const fromLocalInput = (value) => (value ? new Date(value).toISOString() : '');

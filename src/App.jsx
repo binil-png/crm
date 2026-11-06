@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from './context/AuthContext';
 import { useCrmStore } from './store/crmStore';
 import { ROLES } from './utils/constants';
+import useNetworkPoll from './hooks/useNetworkPoll';
 import GoogleLoginButton from './components/auth/GoogleLoginButton';
 import Navbar from './components/shared/Navbar';
 import CommunicationPanel from './components/shared/CommunicationPanel';
@@ -21,6 +22,8 @@ export default function App() {
       refreshAll().catch(() => {});
     }
   }, [isAuthenticated, refreshAll]);
+
+  useNetworkPoll(isAuthenticated);
 
   useEffect(() => {
     setTab('main');

@@ -5,6 +5,7 @@ import {
   appendStageComment,
   createId,
   formatDdMmYyyy,
+  formatDdMmYyyyHm,
   leadKey,
   nowIso,
   findClientForLead,
@@ -15,6 +16,8 @@ import {
 const replaceLead = (leads, next) =>
   leads.map((lead) => (leadKey(lead) === leadKey(next) ? next : lead));
 
+let refreshPromise = null;
+
 export const useCrmStore = create((set, get) => ({
   leads: [],
   leadSheets: [],
@@ -23,26 +26,52 @@ export const useCrmStore = create((set, get) => ({
   messages: [],
   worklogs: [],
   loading: false,
+  syncing: false,
+  lastSyncedAt: 0,
   error: '',
 
   setError: (error) => set({ error }),
 
-  refreshAll: async () => {
-    set({ loading: true, error: '' });
-    try {
-      const [leads, leadSheets, clients, sessions, messages, worklogs] = await Promise.all([
-        sheets.getLeads(),
-        sheets.getLeadSheets(),
-        sheets.getClients(),
-        sheets.getSessions(),
-        sheets.getMessages(),
-        sheets.getWorklogs(),
-      ]);
-      set({ leads, leadSheets, clients, sessions, messages, worklogs, loading: false });
-    } catch (error) {
-      set({ loading: false, error: error.message || 'Failed to load CRM data.' });
-      throw error;
-    }
+  refreshAll: async ({ silent = false } = {}) => {
+    if (refreshPromise) return refreshPromise;
+
+    refreshPromise = (async () => {
+      if (silent) set({ syncing: true });
+      else set({ loading: true, error: '' });
+      try {
+        const [leads, leadSheets, clients, sessions, messages, worklogs] = await Promise.all([
+          sheets.getLeads(),
+          sheets.getLeadSheets(),
+          sheets.getClients(),
+          sheets.getSessions(),
+          sheets.getMessages(),
+          sheets.getWorklogs(),
+        ]);
+        set({
+          leads,
+          leadSheets,
+          clients,
+          sessions,
+          messages,
+          worklogs,
+          loading: false,
+          syncing: false,
+          lastSyncedAt: Date.now(),
+          error: silent ? get().error : '',
+        });
+      } catch (error) {
+        if (silent) {
+          set({ syncing: false });
+          return;
+        }
+        set({ loading: false, syncing: false, error: error.message || 'Failed to load CRM data.' });
+        throw error;
+      }
+    })().finally(() => {
+      refreshPromise = null;
+    });
+
+    return refreshPromise;
   },
 
   createLead: async (payload) => {
@@ -74,6 +103,25 @@ export const useCrmStore = create((set, get) => ({
     const next = await sheets.updateLead(lead, patch);
     set({ leads: replaceLead(get().leads, next) });
     return next;
+  },
+
+  scheduleCall: async (lead, { start, end, note }) => {
+    const startDate = new Date(start);
+    const endDate = end ? new Date(end) : new Date(startDate.getTime() + 30 * 60 * 1000);
+    try {
+      await createCalendarEvent({
+        title: `Call - ${lead['Customer Name']}`,
+        start: startDate,
+        end: endDate,
+        attendees: [lead['Email ID']].filter(Boolean).join(','),
+        description: note || `Sales call with ${lead['Customer Name']}`,
+      });
+    } catch (error) {
+      console.warn(error);
+    }
+    const scheduled = formatDdMmYyyyHm(startDate);
+    const comments = appendStageComment(lead.Comments, note || `Call scheduled for ${scheduled}`);
+    return get().updateLead(lead, { 'Scheduled Date': scheduled, Comments: comments });
   },
 
   closeLead: async (lead, { outcome, comment, passToTraining = false }) => {
