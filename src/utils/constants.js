@@ -508,6 +508,24 @@ export const isDemoStatus = (status) => {
 
 export const isClosedStatus = (status) => STATUS_GROUPS.Won.concat(STATUS_GROUPS.Lost).includes(normalizeStatus(status));
 
+export const isCompletedLead = (lead) => normalizeStatus(lead?.Status) === 'Demo Done-Closed';
+
+export const COMPLETED_LEAD_DRAG = 'application/x-crm-completed-lead';
+export const COMPLETED_LEAD_DRAG_TEXT = 'text/x-completed-lead';
+
+export const setCompletedLeadDrag = (event, lead) => {
+  const payload = JSON.stringify({ kind: 'lead', key: leadKey(lead) });
+  event.dataTransfer.setData(COMPLETED_LEAD_DRAG, leadKey(lead));
+  event.dataTransfer.setData(COMPLETED_LEAD_DRAG_TEXT, leadKey(lead));
+  event.dataTransfer.setData('text/plain', payload);
+  event.dataTransfer.effectAllowed = 'copy';
+};
+
+export const isCompletedLeadDrag = (event) => {
+  const types = Array.from(event.dataTransfer?.types || []);
+  return types.includes(COMPLETED_LEAD_DRAG) || types.includes(COMPLETED_LEAD_DRAG_TEXT);
+};
+
 export const parseStageComments = (value) => {
   const text = String(value || '')
     .replace(/\r\n/g, '\n')

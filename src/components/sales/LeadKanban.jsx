@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { GripVertical, Plus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
 import useNow from '../../hooks/useNow';
@@ -17,10 +17,11 @@ import {
   formatScheduleRelative,
   getCallScheduleState,
   getLeadScheduleAt,
+  isCompletedLead,
   leadKey,
-  normalizeStatus,
   parseStageComments,
   pipelineColor,
+  setCompletedLeadDrag,
 } from '../../utils/constants';
 import LeadModal from './LeadModal';
 import SalesCloseModal from './SalesCloseModal';
@@ -201,12 +202,13 @@ export default function LeadKanban() {
       <CallAlerts leads={leads} now={now} onSelect={openLead} />
       {tableError ? <p className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{tableError}</p> : null}
 
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
       <div>
       <div className="max-h-[70vh] overflow-auto rounded border border-slate-300 bg-white">
         <table className="min-w-[1400px] w-full border-collapse text-left text-sm">
           <thead className="sticky top-0 bg-slate-50 text-xs uppercase text-slate-500">
             <tr>
+              <th className="w-8 border border-slate-300 px-1 py-2" title="Drag completed leads to training" />
               <th className="border border-slate-300 px-2 py-2">Sheet</th>
               {LEAD_HEADERS.map((header) => (
                 <th key={header} className="whitespace-nowrap border border-slate-300 px-2 py-2">
@@ -221,18 +223,11 @@ export default function LeadKanban() {
               const stages = comments.length ? comments : [{ raw: '—', num: 0, message: '' }];
               const span = stages.length;
               const trainingClient = findClientForLead(clients, lead);
-              const canPass = normalizeStatus(lead.Status) === 'Demo Done-Closed' && !trainingClient;
+              const canPass = isCompletedLead(lead) && !trainingClient;
               return stages.map((comment, index) => (
                 <tr
                   key={`${leadKey(lead)}-${comment.num || index}`}
-                  draggable={canPass && index === 0}
-                  className={`hover:bg-slate-50 ${canPass ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
-                  onDragStart={(event) => {
-                    if (!canPass) return;
-                    skipRowClick.current = true;
-                    event.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'lead', key: leadKey(lead) }));
-                    event.dataTransfer.effectAllowed = 'copy';
-                  }}
+                  className={`hover:bg-slate-50 ${canPass ? 'bg-emerald-50/60' : 'cursor-pointer'}`}
                   onClick={() => {
                     if (skipRowClick.current) {
                       skipRowClick.current = false;
@@ -242,8 +237,29 @@ export default function LeadKanban() {
                   }}
                 >
                   {index === 0
-                    ? ['Sheet', ...LEAD_HEADERS].map((header) =>
-                        header === 'Comments' ? (
+                    ? ['Pass', 'Sheet', ...LEAD_HEADERS].map((header) =>
+                        header === 'Pass' ? (
+                          <td
+                            key="Pass"
+                            rowSpan={span}
+                            className="w-8 border border-slate-300 px-1 py-2 align-top"
+                          >
+                            {canPass ? (
+                              <span
+                                draggable
+                                title="Drag this completed lead to training"
+                                className="inline-flex cursor-grab rounded p-0.5 text-emerald-700 active:cursor-grabbing"
+                                onClick={(event) => event.stopPropagation()}
+                                onDragStart={(event) => {
+                                  skipRowClick.current = true;
+                                  setCompletedLeadDrag(event, lead);
+                                }}
+                              >
+                                <GripVertical size={16} />
+                              </span>
+                            ) : null}
+                          </td>
+                        ) : header === 'Comments' ? (
                           <CommentCell
                             key={`${leadKey(lead)}-c-${index}`}
                             comment={comment}
@@ -281,7 +297,7 @@ export default function LeadKanban() {
             })}
             {rows.length === 0 ? (
               <tr>
-                <td className="border border-slate-300 px-3 py-6 text-slate-500" colSpan={LEAD_HEADERS.length + 1}>
+                <td className="border border-slate-300 px-3 py-6 text-slate-500" colSpan={LEAD_HEADERS.length + 2}>
                   No leads match these filters.
                 </td>
               </tr>
@@ -401,7 +417,7 @@ function StatusSelect({ lead, busy, trainingClient, canPass, onChange }) {
           {trainingClient.Training_Status ? ` · ${trainingClient.Training_Status}` : ''}
         </p>
       ) : canPass ? (
-        <p className="mt-1 text-[11px] text-emerald-700">Drag to training box</p>
+        <p className="mt-1 text-[11px] text-emerald-700">Drag the handle to training</p>
       ) : null}
     </div>
   );
