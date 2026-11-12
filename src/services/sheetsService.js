@@ -115,9 +115,15 @@ const ensureSheetWithHeaders = async (existing, title, headers) => {
     return;
   }
   const first = (await getValues(a1(title, '1:1')))[0] || [];
-  const hasHeaders = headers.every((header, index) => String(first[index] || '').trim() === header);
-  if (!hasHeaders && first.every((cell) => String(cell || '').trim() === '')) {
+  const present = new Set(first.map((cell) => String(cell || '').trim()).filter(Boolean));
+  const missing = headers.filter((header) => !present.has(header));
+  if (!first.some((cell) => String(cell || '').trim())) {
     await updateValues(a1(title, 'A1'), [headers]);
+    return;
+  }
+  if (missing.length) {
+    const next = [...first.map((cell) => String(cell || '').trim()).filter(Boolean), ...missing];
+    await updateValues(a1(title, '1:1'), [next]);
   }
 };
 

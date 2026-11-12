@@ -19,6 +19,7 @@ import {
   getLeadScheduleAt,
   isCompletedLead,
   leadKey,
+  normalizeTrainingStatus,
   parseStageComments,
   pipelineColor,
   setCompletedLeadDrag,
@@ -414,7 +415,7 @@ function StatusSelect({ lead, busy, trainingClient, canPass, onChange }) {
       {trainingClient ? (
         <p className="mt-1 text-[11px] text-sky-700">
           Passed to training
-          {trainingClient.Training_Status ? ` · ${trainingClient.Training_Status}` : ''}
+          {trainingClient.Training_Status ? ` · ${normalizeTrainingStatus(trainingClient.Training_Status)}` : ''}
         </p>
       ) : canPass ? (
         <p className="mt-1 text-[11px] text-emerald-700">Drag the handle to training</p>

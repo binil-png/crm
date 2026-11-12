@@ -8,6 +8,7 @@ import {
   isCompletedLeadDrag,
   leadKey,
   setCompletedLeadDrag,
+  normalizeTrainingStatus,
   trainerLabel,
   trainingColor,
 } from '../../utils/constants';
@@ -156,7 +157,7 @@ export default function TrainingDropBox({ leads }) {
                 <div className="flex items-start justify-between gap-2">
                   <p className="truncate text-sm font-medium">{client.Client_Name}</p>
                   <span className={`rounded px-1.5 py-0.5 text-[10px] ${trainingColor(client.Training_Status)}`}>
-                    {client.Training_Status || 'Pending Assignment'}
+                    {normalizeTrainingStatus(client.Training_Status)}
                   </span>
                 </div>
                 <p className="truncate text-xs text-slate-500">{client.Contact_Email || 'No email'}</p>

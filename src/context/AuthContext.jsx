@@ -9,6 +9,7 @@ import {
 } from '../services/googleApi';
 import { ensureWorkbook } from '../services/sheetsService';
 import { ROLE_LABELS, ROLES, SCOPES, STORAGE_KEYS } from '../utils/constants';
+import { initPushNotifications } from '../services/pushNotifications';
 
 const AuthContext = createContext(null);
 
@@ -53,6 +54,12 @@ export function AuthProvider({ children }) {
     };
     boot();
   }, []);
+
+  useEffect(() => {
+    if (!user?.email) return undefined;
+    initPushNotifications(user).catch((err) => console.warn(err));
+    return undefined;
+  }, [user]);
 
   const persistUser = (profile, token, expiresIn = 3600) => {
     setUser(profile);

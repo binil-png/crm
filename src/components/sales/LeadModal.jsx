@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
 import { createCalendarEvent } from '../../services/calendarService';
+import { scheduleTimedPush } from '../../services/pushNotifications';
 import {
   LEAD_SOURCES,
   LANGUAGES,
@@ -19,6 +20,7 @@ import {
   isDemoStatus,
   leadKey,
   nextSalesActions,
+  normalizeTrainingStatus,
   parseStageComments,
   toLocalInput,
 } from '../../utils/constants';
@@ -89,6 +91,13 @@ export default function LeadModal({ lead, onClose, onCloseDeal, mode = 'full' })
         } catch (calendarError) {
           console.warn(calendarError);
         }
+        scheduleTimedPush({
+          id: `demo-${lead._sheet}-${lead['Sl No']}`,
+          startAt: fromLocalInput(demoStart),
+          title: `Demo with ${form['Customer Name']}`,
+          body: `Sales demo at ${formatDdMmYyyyHm(new Date(demoStart))}`,
+          emails: [user?.email].filter(Boolean),
+        }).catch((error) => console.warn(error));
       }
       const note = stageNote || `Status changed to ${status}`;
       const scheduled = status === 'Demo Scheduled' ? formatDdMmYyyyHm(new Date(demoStart)) : form['Scheduled Date'];
@@ -413,7 +422,7 @@ export default function LeadModal({ lead, onClose, onCloseDeal, mode = 'full' })
         ) : null}
         {trainingClient ? (
           <span className="self-center text-sm text-sky-800">
-            Passed to training · {trainingClient.Training_Status}
+            Passed to training · {normalizeTrainingStatus(trainingClient.Training_Status)}
             {trainingClient.Assigned_Trainer ? ` · ${trainingClient.Assigned_Trainer}` : ''}
           </span>
         ) : null}

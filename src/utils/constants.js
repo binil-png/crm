@@ -70,6 +70,7 @@ export const HEADERS = {
     'Assigned_Trainer',
     'Training_Status',
     'Completed_Date',
+    'Work_Type',
   ],
   [SHEETS.SESSIONS]: [
     'Session_ID',
@@ -80,6 +81,8 @@ export const HEADERS = {
     'End_Time',
     'Trainer_Email',
     'Status',
+    'Session_Type',
+    'Cancel_Reason',
   ],
   [SHEETS.LOGS]: [
     'Log_ID',
@@ -245,8 +248,39 @@ export const trainerLabel = (email) => {
   return member ? `${member.name} (${member.email})` : email || 'Unassigned';
 };
 
-export const TRAINING_STATUSES = ['Pending Assignment', 'In Progress', 'Completed'];
+export const TRAINING_STATUSES = ['Not started', 'Ongoing', 'Completed'];
+export const WORK_TYPES = ['Training', 'Doubt clarification'];
 export const SESSION_STATUSES = ['Scheduled', 'Rescheduled', 'Completed', 'Cancelled'];
+
+export const normalizeTrainingStatus = (status = '') => {
+  const value = String(status).trim();
+  const map = {
+    'Pending Assignment': 'Not started',
+    Pending: 'Not started',
+    'Not Started': 'Not started',
+    'In Progress': 'Ongoing',
+    'In progress': 'Ongoing',
+  };
+  return map[value] || TRAINING_STATUSES.find((item) => item === value) || 'Not started';
+};
+
+export const normalizeWorkType = (value = '') => {
+  const raw = String(value).trim().toLowerCase();
+  if (raw.includes('doubt')) return 'Doubt clarification';
+  return 'Training';
+};
+
+export const isTrainingNotStarted = (client) => normalizeTrainingStatus(client?.Training_Status) === 'Not started';
+export const isTrainingOngoing = (client) => normalizeTrainingStatus(client?.Training_Status) === 'Ongoing';
+export const isTrainingCompleted = (client) => normalizeTrainingStatus(client?.Training_Status) === 'Completed';
+
+export const clientWorkType = (client) => normalizeWorkType(client?.Work_Type);
+export const sessionWorkType = (session) => normalizeWorkType(session?.Session_Type || session?.Work_Type);
+
+export const sessionTitleForType = (type, clientName) =>
+  normalizeWorkType(type) === 'Doubt clarification'
+    ? `Doubt clarification · ${clientName}`
+    : `Training · ${clientName}`;
 export const MESSAGE_TYPES = INTERACTION_CHANNELS;
 export const SENDER_TEAMS = ['Sales', 'Training'];
 export const ENTRY_TYPES = {
@@ -278,7 +312,7 @@ export const STORAGE_KEYS = {
   SPREADSHEET_ID: 'crm_spreadsheet_id',
   CALENDAR_ID: 'crm_calendar_id',
   DEMO_MODE: 'crm_demo_mode',
-  MOCK_DB: 'crm_mock_db_v4',
+  MOCK_DB: 'crm_mock_db_v5',
 };
 
 export const createId = (prefix) =>
@@ -480,12 +514,19 @@ export const pipelineColor = (status) => {
 
 export const trainingColor = (status) => {
   const map = {
+    'Not started': 'bg-amber-100 text-amber-800',
+    Ongoing: 'bg-sky-100 text-sky-800',
+    Completed: 'bg-emerald-100 text-emerald-800',
     'Pending Assignment': 'bg-amber-100 text-amber-800',
     'In Progress': 'bg-sky-100 text-sky-800',
-    Completed: 'bg-emerald-100 text-emerald-800',
   };
-  return map[status] || 'bg-slate-100 text-slate-700';
+  return map[normalizeTrainingStatus(status)] || map[status] || 'bg-slate-100 text-slate-700';
 };
+
+export const workTypeColor = (type) =>
+  normalizeWorkType(type) === 'Doubt clarification'
+    ? 'bg-violet-100 text-violet-800'
+    : 'bg-sky-100 text-sky-800';
 
 export const sessionColor = (status) => {
   const map = {

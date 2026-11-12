@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import * as sheets from '../services/sheetsService';
 import { createCalendarEvent, patchCalendarEvent } from '../services/calendarService';
+import { cancelTimedPush, currentUserEmail, scheduleTimedPush } from '../services/pushNotifications';
 import {
   appendStageComment,
   createId,
@@ -121,6 +122,13 @@ export const useCrmStore = create((set, get) => ({
     }
     const scheduled = formatDdMmYyyyHm(startDate);
     const comments = appendStageComment(lead.Comments, note || `Call scheduled for ${scheduled}`);
+    scheduleTimedPush({
+      id: `call-${lead._sheet}-${lead['Sl No']}`,
+      startAt: startDate,
+      title: `Call with ${lead['Customer Name']}`,
+      body: note || `Sales call at ${scheduled}`,
+      emails: [currentUserEmail()].filter(Boolean),
+    }).catch((error) => console.warn(error));
     return get().updateLead(lead, { 'Scheduled Date': scheduled, Comments: comments });
   },
 
@@ -145,7 +153,8 @@ export const useCrmStore = create((set, get) => ({
       Client_Name: lead['Customer Name'],
       Contact_Email: lead['Email ID'] || '',
       Assigned_Trainer: '',
-      Training_Status: 'Pending Assignment',
+      Training_Status: 'Not started',
+      Work_Type: 'Training',
       Completed_Date: '',
     };
     await sheets.addClient(client);
@@ -161,7 +170,7 @@ export const useCrmStore = create((set, get) => ({
   pickClient: async (clientId, trainerEmail) => {
     const next = await sheets.updateClient(clientId, {
       Assigned_Trainer: trainerEmail,
-      Training_Status: 'In Progress',
+      Training_Status: 'Ongoing',
     });
     set({ clients: get().clients.map((client) => (client.Client_ID === clientId ? next : client)) });
     return next;
@@ -179,16 +188,17 @@ export const useCrmStore = create((set, get) => ({
     return next;
   },
 
-  scheduleSessions: async ({ client, trainerEmail, sessions }) => {
+  scheduleSessions: async ({ client, trainerEmail, sessions, workType }) => {
     const created = [];
     for (const item of sessions) {
+      const sessionType = item.sessionType || workType || client.Work_Type || 'Training';
       const attendees = [client.Contact_Email, trainerEmail].filter(Boolean).join(',');
       const event = await createCalendarEvent({
         title: item.title,
         start: item.start,
         end: item.end,
         attendees,
-        description: `Training session for ${client.Client_Name}`,
+        description: `${sessionType} session for ${client.Client_Name}`,
       });
       const session = {
         Session_ID: createId('SS'),
@@ -199,15 +209,24 @@ export const useCrmStore = create((set, get) => ({
         End_Time: new Date(item.end).toISOString(),
         Trainer_Email: trainerEmail,
         Status: 'Scheduled',
+        Session_Type: sessionType,
         Meet_Link: event.hangoutLink || event.conferenceData?.entryPoints?.[0]?.uri || '',
       };
       await sheets.addSession(session);
       created.push(session);
+      scheduleTimedPush({
+        id: `session-${session.Session_ID}`,
+        startAt: item.start,
+        title: item.title,
+        body: `${sessionType} with ${client.Client_Name}`,
+        emails: [trainerEmail, currentUserEmail()].filter(Boolean),
+      }).catch((error) => console.warn(error));
     }
 
     const clientPatch = {
       Assigned_Trainer: trainerEmail,
-      Training_Status: client.Training_Status === 'Completed' ? 'Completed' : 'In Progress',
+      Training_Status: client.Training_Status === 'Completed' ? 'Completed' : 'Ongoing',
+      Work_Type: client.Work_Type || workType || created[0]?.Session_Type || 'Training',
     };
     const nextClient = await sheets.updateClient(client.Client_ID, clientPatch);
     set({
@@ -221,6 +240,9 @@ export const useCrmStore = create((set, get) => ({
     const next = await sheets.updateSession(sessionId, patch);
     const sessions = get().sessions.map((session) => (session.Session_ID === sessionId ? next : session));
     set({ sessions });
+    if (patch.Status === 'Cancelled' || patch.Status === 'Completed') {
+      cancelTimedPush(`session-${sessionId}`).catch(() => {});
+    }
     await get().maybeCompleteTraining(next.Client_ID, sessions);
     return next;
   },
@@ -235,11 +257,19 @@ export const useCrmStore = create((set, get) => ({
         console.warn(error);
       }
     }
-    return get().updateSession(session.Session_ID, {
+    const next = await get().updateSession(session.Session_ID, {
       Start_Time: nextStart.toISOString(),
       End_Time: nextEnd.toISOString(),
       Status: session.Status === 'Completed' || session.Status === 'Cancelled' ? session.Status : 'Rescheduled',
     });
+    scheduleTimedPush({
+      id: `session-${session.Session_ID}`,
+      startAt: nextStart,
+      title: session.Session_Title || 'Training session',
+      body: `Rescheduled session with ${session.Trainer_Email || 'the training team'}`,
+      emails: [session.Trainer_Email, currentUserEmail()].filter(Boolean),
+    }).catch((error) => console.warn(error));
+    return next;
   },
 
   completeSession: async (session) => {
@@ -257,6 +287,13 @@ export const useCrmStore = create((set, get) => ({
       Training_Status: 'Completed',
       Completed_Date: todayInput(),
     });
+  },
+
+  setClientTrainingStatus: async (clientId, status) => {
+    const patch = { Training_Status: status };
+    if (status === 'Completed') patch.Completed_Date = todayInput();
+    if (status === 'Not started') patch.Completed_Date = '';
+    return get().updateClient(clientId, patch);
   },
 
   addMessage: async (payload) => {

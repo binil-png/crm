@@ -1,25 +1,44 @@
+import { useState } from 'react';
 import { useCrmStore } from '../../store/crmStore';
-import { formatDateTime, sessionColor } from '../../utils/constants';
+import {
+  WORK_TYPES,
+  formatDateTime,
+  sessionColor,
+  sessionWorkType,
+  workTypeColor,
+} from '../../utils/constants';
 
 export default function SessionList({ clientId, compact = false }) {
   const { sessions, clients, completeSession, updateSession } = useCrmStore();
+  const [typeFilter, setTypeFilter] = useState('All');
   const rows = sessions
     .filter((session) => !clientId || session.Client_ID === clientId)
+    .filter((session) => typeFilter === 'All' || sessionWorkType(session) === typeFilter)
     .sort((a, b) => new Date(a.Start_Time) - new Date(b.Start_Time));
 
   const clientName = (id) => clients.find((client) => client.Client_ID === id)?.Client_Name || id;
 
   if (!rows.length) {
-    return <p className="text-sm text-slate-500">No sessions yet.</p>;
+    return (
+      <div>
+        {!compact ? (
+          <TypeFilter value={typeFilter} onChange={setTypeFilter} />
+        ) : null}
+        <p className="text-sm text-slate-500">No sessions yet.</p>
+      </div>
+    );
   }
 
   return (
+    <div>
+      {!compact ? <TypeFilter value={typeFilter} onChange={setTypeFilter} /> : null}
     <div className="overflow-x-auto rounded border border-slate-200 bg-white">
       <table className="min-w-full text-left text-sm">
         <thead className="bg-slate-50 text-xs uppercase text-slate-500">
           <tr>
             {!compact ? <th className="px-3 py-2">Client</th> : null}
             <th className="px-3 py-2">Session</th>
+            <th className="px-3 py-2">Type</th>
             <th className="px-3 py-2">When</th>
             <th className="px-3 py-2">Trainer</th>
             <th className="px-3 py-2">Status</th>
@@ -33,6 +52,11 @@ export default function SessionList({ clientId, compact = false }) {
               <td className="px-3 py-2">
                 <p>{session.Session_Title}</p>
                 <p className="text-xs text-slate-500">{session.Session_ID}</p>
+              </td>
+              <td className="px-3 py-2">
+                <span className={`rounded px-2 py-0.5 text-xs ${workTypeColor(sessionWorkType(session))}`}>
+                  {sessionWorkType(session)}
+                </span>
               </td>
               <td className="px-3 py-2">
                 {formatDateTime(session.Start_Time)}
@@ -68,6 +92,26 @@ export default function SessionList({ clientId, compact = false }) {
           ))}
         </tbody>
       </table>
+    </div>
+    </div>
+  );
+}
+
+function TypeFilter({ value, onChange }) {
+  return (
+    <div className="mb-3 flex flex-wrap gap-2">
+      {['All', ...WORK_TYPES].map((item) => (
+        <button
+          key={item}
+          type="button"
+          onClick={() => onChange(item)}
+          className={`rounded px-3 py-1.5 text-sm ${
+            value === item ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white'
+          }`}
+        >
+          {item}
+        </button>
+      ))}
     </div>
   );
 }

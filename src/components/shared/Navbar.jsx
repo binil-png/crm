@@ -4,6 +4,7 @@ import { useCrmStore } from '../../store/crmStore';
 import { ROLES, ROLE_LABELS } from '../../utils/constants';
 import { isDemoMode } from '../../services/googleApi';
 import useNow from '../../hooks/useNow';
+import PushPrompt from './PushPrompt';
 
 const formatSynced = (at, now) => {
   if (!at) return 'Waiting for first sync';
@@ -42,6 +43,7 @@ export default function Navbar() {
           </div>
 
           <div className="flex items-center gap-2">
+            <PushPrompt />
             <p className="hidden text-xs text-slate-500 sm:block">
               {syncing && !loading ? 'Updating…' : formatSynced(lastSyncedAt, now)}
             </p>

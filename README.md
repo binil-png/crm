@@ -41,7 +41,28 @@ Paste the Client ID and Spreadsheet ID on the setup screen, or put them in `.env
 VITE_GOOGLE_CLIENT_ID=
 VITE_GOOGLE_API_KEY=
 VITE_GOOGLE_SPREADSHEET_ID=
+VITE_GOOGLE_CALENDAR_ID=primary
 ```
+
+## Web push (after the tab is closed)
+
+In-app banners only work while the CRM is open. Closed-app alerts use **OneSignal** web push (FCM on Chrome/Edge, standard Web Push on Firefox/Safari).
+
+1. Create a free app at [onesignal.com](https://onesignal.com).
+2. Add the **Web** platform. Site URL: `http://localhost:5173` (plus your production origin).
+3. Put the values in `.env`:
+
+```bash
+VITE_ONESIGNAL_APP_ID=
+ONESIGNAL_APP_ID=
+ONESIGNAL_REST_API_KEY=
+# Optional. Defaults to /api/push during npm run dev.
+VITE_PUSH_API_URL=
+```
+
+`ONESIGNAL_REST_API_KEY` is server-only. Do not prefix it with `VITE_`. Local Vite exposes `POST /api/push` so reminders can be scheduled without putting that key in the browser. For production, deploy `api/send-push.js` and set `VITE_PUSH_API_URL` to that URL.
+
+After sign-in, click **Enable alerts** in the header, then schedule a call or training session. OneSignal delivers a notification 5 minutes before and at start time even if the CRM tab is closed.
 
 Use **local demo mode** if you want to try the workflows without Google credentials. Demo data stays in `localStorage`.
 

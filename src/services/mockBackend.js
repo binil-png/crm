@@ -204,8 +204,9 @@ const seedDb = () => {
           Client_Name: 'Dr Yogesh Kumar',
           Contact_Email: 'dryogesh@clinic.test',
           Assigned_Trainer: '',
-          Training_Status: 'Pending Assignment',
+          Training_Status: 'Not started',
           Completed_Date: '',
+          Work_Type: 'Doubt clarification',
         },
         HEADERS[SHEETS.CLIENTS]
       ),
@@ -216,8 +217,9 @@ const seedDb = () => {
           Client_Name: 'Dr Karthi',
           Contact_Email: 'drkaarent@gmail.com',
           Assigned_Trainer: 'demo@example.com',
-          Training_Status: 'In Progress',
+          Training_Status: 'Ongoing',
           Completed_Date: '',
+          Work_Type: 'Training',
         },
         HEADERS[SHEETS.CLIENTS]
       ),
@@ -234,6 +236,8 @@ const seedDb = () => {
           End_Time: end.toISOString(),
           Trainer_Email: 'demo@example.com',
           Status: 'Scheduled',
+          Session_Type: 'Training',
+          Cancel_Reason: '',
         },
         HEADERS[SHEETS.SESSIONS]
       ),

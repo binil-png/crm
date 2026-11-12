@@ -82,7 +82,7 @@ export default function App() {
         {role === ROLES.TRAINING && tab === 'clients' ? <ClientList /> : null}
         {role === ROLES.TRAINING && tab === 'sessions' ? (
           <section>
-            <h2 className="mb-3 text-lg font-semibold">All training sessions</h2>
+            <h2 className="mb-3 text-lg font-semibold">Training and doubt clarification sessions</h2>
             <SessionList />
           </section>
         ) : null}
