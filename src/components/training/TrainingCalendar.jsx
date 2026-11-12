@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, GripVertical } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
-import { parseSheetDate, sessionColor, trainingColor } from '../../utils/constants';
+import { listTrainingTeam, parseSheetDate, sessionColor, trainingColor } from '../../utils/constants';
+import TrainerSelect from './TrainerSelect';
 
 const START_HOUR = 8;
 const END_HOUR = 20;
@@ -57,8 +58,13 @@ const readDragPayload = (event) => {
 export default function TrainingCalendar() {
   const { user } = useAuth();
   const { clients, sessions, scheduleSessions, rescheduleSession } = useCrmStore();
+  const team = useMemo(
+    () => listTrainingTeam({ clients, sessions, extra: [user?.email] }),
+    [clients, sessions, user?.email]
+  );
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [duration, setDuration] = useState(60);
+  const [trainerEmail, setTrainerEmail] = useState(user?.email || team[0]?.email || '');
   const [selectedId, setSelectedId] = useState('');
   const [hoverKey, setHoverKey] = useState('');
   const [busy, setBusy] = useState(false);
@@ -107,9 +113,14 @@ export default function TrainingCalendar() {
         return;
       }
 
+      const trainer = trainerEmail || user?.email || client.Assigned_Trainer || '';
+      if (!trainer) {
+        setError('Select a training team member before scheduling.');
+        return;
+      }
       await scheduleSessions({
         client,
-        trainerEmail: user?.email || client.Assigned_Trainer || '',
+        trainerEmail: trainer,
         sessions: [
           {
             title: `Training · ${client.Client_Name}`,
@@ -134,7 +145,7 @@ export default function TrainingCalendar() {
         <div>
           <h2 className="text-lg font-semibold">Training calendar</h2>
           <p className="text-sm text-slate-500">
-            Drag a client onto a slot, or select a client and click a time. Sessions are assigned to you.
+            Drag a client onto a slot, or select a client and click a time. Sessions are booked for the selected trainer.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -162,6 +173,9 @@ export default function TrainingCalendar() {
             <ChevronRight size={16} />
           </button>
           <p className="min-w-[180px] text-sm font-medium">{weekLabel}</p>
+          <div className="min-w-[220px]">
+            <TrainerSelect compact value={trainerEmail} onChange={setTrainerEmail} team={team} />
+          </div>
           <label className="text-sm text-slate-600">
             Duration
             <select

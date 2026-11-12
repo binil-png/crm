@@ -1,5 +1,5 @@
 import { getTimeZone } from '../utils/constants';
-import { getAccessToken, googleFetch, isDemoMode, isGapiReady } from './googleApi';
+import { getAccessToken, getCalendarId, googleFetch, isDemoMode, isGapiReady } from './googleApi';
 import * as mock from './mockBackend';
 
 const splitEmails = (value) =>
@@ -32,10 +32,11 @@ export const createCalendarEvent = async ({ title, start, end, attendees, descri
   }
 
   const resource = buildEventResource({ title, start, end, attendees, description });
+  const calendarId = encodeURIComponent(getCalendarId());
 
   if (isGapiReady()) {
     const response = await window.gapi.client.calendar.events.insert({
-      calendarId: 'primary',
+      calendarId: getCalendarId(),
       conferenceDataVersion: 1,
       sendUpdates: 'all',
       resource,
@@ -44,7 +45,7 @@ export const createCalendarEvent = async ({ title, start, end, attendees, descri
   }
 
   return googleFetch(
-    'https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all',
+    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?conferenceDataVersion=1&sendUpdates=all`,
     { method: 'POST', body: JSON.stringify(resource) }
   );
 };
@@ -59,9 +60,11 @@ export const patchCalendarEvent = async (eventId, { start, end, title, attendees
     ...(attendees ? { attendees: splitEmails(attendees).map((email) => ({ email })) } : {}),
   };
 
+  const calendarId = encodeURIComponent(getCalendarId());
+
   if (isGapiReady()) {
     const response = await window.gapi.client.calendar.events.patch({
-      calendarId: 'primary',
+      calendarId: getCalendarId(),
       eventId,
       sendUpdates: 'all',
       conferenceDataVersion: 1,
@@ -73,7 +76,7 @@ export const patchCalendarEvent = async (eventId, { start, end, title, attendees
   const token = getAccessToken();
   if (!token) throw new Error('Not signed in.');
   return googleFetch(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
     { method: 'PATCH', body: JSON.stringify(resource) }
   );
 };

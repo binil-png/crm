@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
@@ -17,6 +17,7 @@ import {
   getCallScheduleState,
   getLeadScheduleAt,
   leadKey,
+  normalizeStatus,
   parseStageComments,
   pipelineColor,
 } from '../../utils/constants';
@@ -24,6 +25,7 @@ import LeadModal from './LeadModal';
 import SalesCloseModal from './SalesCloseModal';
 import CallAlerts from './CallAlerts';
 import CallScheduleSidebar from './CallScheduleSidebar';
+import TrainingDropBox from './TrainingDropBox';
 import ScheduleDateTimeFields from './ScheduleDateTimeFields';
 import Modal from '../shared/Modal';
 
@@ -42,6 +44,7 @@ export default function LeadKanban() {
   const [selected, setSelected] = useState(null);
   const [closing, setClosing] = useState(null);
   const [creating, setCreating] = useState(false);
+  const skipRowClick = useRef(false);
 
   const executives = useMemo(
     () => [...new Set(leads.map((lead) => lead.Executive).filter(Boolean))],
@@ -161,7 +164,10 @@ export default function LeadKanban() {
 
       <CallAlerts leads={leads} now={now} onSelect={setSelected} />
 
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="grid items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)_280px]">
+      <div className="lg:sticky lg:top-20">
+        <TrainingDropBox leads={leads} />
+      </div>
       <div>
       <div className="max-h-[70vh] overflow-auto rounded border border-slate-300 bg-white">
         <table className="min-w-[1400px] w-full border-collapse text-left text-sm">
@@ -181,11 +187,25 @@ export default function LeadKanban() {
               const stages = comments.length ? comments : [{ raw: '—', num: 0, message: '' }];
               const span = stages.length;
               const trainingClient = findClientForLead(clients, lead);
+              const canPass = normalizeStatus(lead.Status) === 'Demo Done-Closed' && !trainingClient;
               return stages.map((comment, index) => (
                 <tr
                   key={`${leadKey(lead)}-${comment.num || index}`}
-                  className="cursor-pointer hover:bg-slate-50"
-                  onClick={() => setSelected(lead)}
+                  draggable={canPass && index === 0}
+                  className={`hover:bg-slate-50 ${canPass ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
+                  onDragStart={(event) => {
+                    if (!canPass) return;
+                    skipRowClick.current = true;
+                    event.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'lead', key: leadKey(lead) }));
+                    event.dataTransfer.effectAllowed = 'copy';
+                  }}
+                  onClick={() => {
+                    if (skipRowClick.current) {
+                      skipRowClick.current = false;
+                      return;
+                    }
+                    setSelected(lead);
+                  }}
                 >
                   {index === 0
                     ? ['Sheet', ...LEAD_HEADERS].map((header) =>
@@ -211,6 +231,8 @@ export default function LeadKanban() {
                                     Passed to training
                                     {trainingClient.Training_Status ? ` · ${trainingClient.Training_Status}` : ''}
                                   </p>
+                                ) : canPass ? (
+                                  <p className="mt-1 text-[11px] text-emerald-700">Drag to training box</p>
                                 ) : null}
                               </div>
                             ) : (
@@ -262,7 +284,9 @@ export default function LeadKanban() {
         </div>
       </div>
       </div>
-      <CallScheduleSidebar leads={leads} now={now} onSelect={setSelected} />
+      <div className="lg:sticky lg:top-20">
+        <CallScheduleSidebar leads={leads} now={now} onSelect={setSelected} />
+      </div>
       </div>
 
       {creating ? (

@@ -6,13 +6,14 @@ export default function SetupScreen({ onSaved }) {
   const [clientId, setClientId] = useState(existing.clientId);
   const [apiKey, setApiKey] = useState(existing.apiKey);
   const [spreadsheetId, setSpreadsheetId] = useState(existing.spreadsheetId);
+  const [calendarId, setCalendarId] = useState(existing.calendarId || 'primary');
 
   const save = (demoMode = false) => {
     if (!demoMode && (!clientId.trim() || !spreadsheetId.trim())) {
       window.alert('Google Client ID and Spreadsheet ID are required.');
       return;
     }
-    saveConfig({ clientId, apiKey, spreadsheetId, demoMode });
+    saveConfig({ clientId, apiKey, spreadsheetId, calendarId, demoMode });
     onSaved(getConfig());
   };
 
@@ -48,6 +49,15 @@ export default function SetupScreen({ onSaved }) {
           onChange={(e) => setSpreadsheetId(e.target.value)}
           placeholder="From the Google Sheets URL"
         />
+
+        <label className="mt-4 block text-sm font-medium">Calendar ID</label>
+        <input
+          className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+          value={calendarId}
+          onChange={(e) => setCalendarId(e.target.value)}
+          placeholder="primary"
+        />
+        <p className="mt-1 text-xs text-slate-500">Use primary for the signed-in user’s calendar, or a calendar ID email.</p>
 
         <div className="mt-6 flex flex-wrap gap-2">
           <button type="button" onClick={() => save(false)} className="rounded bg-slate-900 px-4 py-2 text-white">

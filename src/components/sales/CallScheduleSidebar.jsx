@@ -41,7 +41,7 @@ export default function CallScheduleSidebar({ leads, now, onSelect }) {
   const scheduledCount = grouped.overdue.length + grouped.soon.length + grouped.upcoming.length;
 
   return (
-    <aside className="rounded-lg border border-slate-200 bg-white p-3 lg:sticky lg:top-20">
+    <aside className="rounded-lg border border-slate-200 bg-white p-3">
       <div className="mb-3">
         <h3 className="text-sm font-semibold">Call schedule</h3>
         <p className="text-xs text-slate-500">

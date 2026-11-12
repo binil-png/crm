@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
-import { fromLocalInput, toLocalInput } from '../../utils/constants';
+import { fromLocalInput, listTrainingTeam, toLocalInput } from '../../utils/constants';
 import Modal from '../shared/Modal';
+import TrainerSelect from './TrainerSelect';
 
 const emptySlot = () => ({
   title: 'Training session',
@@ -12,8 +13,12 @@ const emptySlot = () => ({
 
 export default function ScheduleSessionModal({ client, onClose }) {
   const { user } = useAuth();
-  const { scheduleSessions } = useCrmStore();
-  const [trainerEmail, setTrainerEmail] = useState(client.Assigned_Trainer || user?.email || '');
+  const { scheduleSessions, clients, sessions } = useCrmStore();
+  const team = useMemo(
+    () => listTrainingTeam({ clients, sessions, extra: [client.Assigned_Trainer, user?.email] }),
+    [clients, sessions, client.Assigned_Trainer, user?.email]
+  );
+  const [trainerEmail, setTrainerEmail] = useState(client.Assigned_Trainer || user?.email || team[0]?.email || '');
   const [slots, setSlots] = useState([emptySlot()]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -52,16 +57,9 @@ export default function ScheduleSessionModal({ client, onClose }) {
     <Modal title={`Schedule training · ${client.Client_Name}`} onClose={onClose} wide>
       <form onSubmit={submit} className="space-y-4">
         {error ? <p className="rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
-        <label className="block text-sm">
-          Trainer email
-          <input
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-            value={trainerEmail}
-            onChange={(e) => setTrainerEmail(e.target.value)}
-          />
-        </label>
+        <TrainerSelect value={trainerEmail} onChange={setTrainerEmail} team={team} required />
         <p className="text-sm text-slate-500">
-          Each session creates a Google Calendar event with a Meet link and invites the client plus trainer.
+          The session is booked for the selected training team member and invites the client plus trainer.
         </p>
 
         {slots.map((slot, index) => (

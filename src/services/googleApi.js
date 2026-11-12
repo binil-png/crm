@@ -4,15 +4,21 @@ import { DISCOVERY_DOCS, STORAGE_KEYS } from '../utils/constants';
 let gapiReady = false;
 let accessToken = sessionStorage.getItem(STORAGE_KEYS.TOKEN) || '';
 
+const envValue = (key, fallback = '') => {
+  const value = String(import.meta.env[key] || '').trim();
+  if (!value || value.startsWith('your-')) return fallback;
+  return value;
+};
+
 export const getConfig = () => ({
-  clientId: localStorage.getItem(STORAGE_KEYS.CLIENT_ID) || import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
-  apiKey: localStorage.getItem(STORAGE_KEYS.API_KEY) || import.meta.env.VITE_GOOGLE_API_KEY || '',
-  spreadsheetId:
-    localStorage.getItem(STORAGE_KEYS.SPREADSHEET_ID) || import.meta.env.VITE_GOOGLE_SPREADSHEET_ID || '',
+  clientId: localStorage.getItem(STORAGE_KEYS.CLIENT_ID) || envValue('VITE_GOOGLE_CLIENT_ID'),
+  apiKey: localStorage.getItem(STORAGE_KEYS.API_KEY) || envValue('VITE_GOOGLE_API_KEY'),
+  spreadsheetId: localStorage.getItem(STORAGE_KEYS.SPREADSHEET_ID) || envValue('VITE_GOOGLE_SPREADSHEET_ID'),
+  calendarId: localStorage.getItem(STORAGE_KEYS.CALENDAR_ID) || envValue('VITE_GOOGLE_CALENDAR_ID', 'primary'),
   demoMode: localStorage.getItem(STORAGE_KEYS.DEMO_MODE) === '1',
 });
 
-export const saveConfig = ({ clientId, apiKey, spreadsheetId, demoMode }) => {
+export const saveConfig = ({ clientId, apiKey, spreadsheetId, calendarId, demoMode }) => {
   if (demoMode) {
     localStorage.setItem(STORAGE_KEYS.DEMO_MODE, '1');
     return;
@@ -21,6 +27,7 @@ export const saveConfig = ({ clientId, apiKey, spreadsheetId, demoMode }) => {
   if (clientId) localStorage.setItem(STORAGE_KEYS.CLIENT_ID, clientId.trim());
   if (apiKey) localStorage.setItem(STORAGE_KEYS.API_KEY, apiKey.trim());
   if (spreadsheetId) localStorage.setItem(STORAGE_KEYS.SPREADSHEET_ID, spreadsheetId.trim());
+  if (calendarId) localStorage.setItem(STORAGE_KEYS.CALENDAR_ID, calendarId.trim());
 };
 
 export const resetConfig = () => {
@@ -33,6 +40,8 @@ export const resetConfig = () => {
 export const isDemoMode = () => getConfig().demoMode;
 
 export const getSpreadsheetId = () => getConfig().spreadsheetId;
+
+export const getCalendarId = () => getConfig().calendarId || 'primary';
 
 export const getAccessToken = () => accessToken;
 

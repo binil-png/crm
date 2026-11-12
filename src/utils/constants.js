@@ -214,6 +214,37 @@ export const REGIONS = ['Domestic', 'International'];
 export const LANGUAGES = ['English', 'Hindi', 'Malayalam', 'Tamil', 'Kannada', 'Telugu'];
 export const INTERACTION_CHANNELS = ['Comment', 'Call', 'Whatsapp', 'Mail'];
 
+export const TRAINING_TEAM = [
+  { name: 'Demo Trainer', email: 'demo@example.com' },
+  { name: 'Anjali Kumar', email: 'anjali.training@example.com' },
+  { name: 'Ravi Menon', email: 'ravi.training@example.com' },
+];
+
+export const listTrainingTeam = ({ clients = [], sessions = [], extra = [] } = {}) => {
+  const map = new Map();
+  TRAINING_TEAM.forEach((member) => map.set(member.email.toLowerCase(), member));
+  extra.filter(Boolean).forEach((email) => {
+    const key = String(email).trim().toLowerCase();
+    if (key && !map.has(key)) map.set(key, { name: email, email });
+  });
+  clients.forEach((client) => {
+    const email = String(client.Assigned_Trainer || '').trim();
+    const key = email.toLowerCase();
+    if (email && !map.has(key)) map.set(key, { name: email, email });
+  });
+  sessions.forEach((session) => {
+    const email = String(session.Trainer_Email || '').trim();
+    const key = email.toLowerCase();
+    if (email && !map.has(key)) map.set(key, { name: email, email });
+  });
+  return [...map.values()];
+};
+
+export const trainerLabel = (email) => {
+  const member = TRAINING_TEAM.find((item) => item.email.toLowerCase() === String(email || '').trim().toLowerCase());
+  return member ? `${member.name} (${member.email})` : email || 'Unassigned';
+};
+
 export const TRAINING_STATUSES = ['Pending Assignment', 'In Progress', 'Completed'];
 export const SESSION_STATUSES = ['Scheduled', 'Rescheduled', 'Completed', 'Cancelled'];
 export const MESSAGE_TYPES = INTERACTION_CHANNELS;
@@ -245,6 +276,7 @@ export const STORAGE_KEYS = {
   CLIENT_ID: 'crm_google_client_id',
   API_KEY: 'crm_google_api_key',
   SPREADSHEET_ID: 'crm_spreadsheet_id',
+  CALENDAR_ID: 'crm_calendar_id',
   DEMO_MODE: 'crm_demo_mode',
   MOCK_DB: 'crm_mock_db_v4',
 };
