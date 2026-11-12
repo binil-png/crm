@@ -160,7 +160,7 @@ export default function TrainingDropBox({ leads }) {
   };
 
   return (
-    <aside className="rounded-lg border border-slate-200 bg-white p-3">
+    <aside className="rounded-lg border border-sky-200 bg-sky-50 p-3">
       <div className="mb-3 flex items-start gap-2">
         <GraduationCap size={18} className="mt-0.5 text-sky-700" />
         <div>
@@ -201,7 +201,7 @@ export default function TrainingDropBox({ leads }) {
         onDragLeave={() => setOver(false)}
         onDrop={onDrop}
         className={`rounded-lg border-2 border-dashed p-4 text-center text-sm ${
-          over ? 'border-sky-500 bg-sky-50 text-sky-800' : 'border-slate-300 bg-slate-50 text-slate-500'
+          over ? 'border-sky-600 bg-sky-100 text-sky-800' : 'border-sky-300 bg-white text-slate-500'
         }`}
       >
         {busy ? 'Passing to training…' : over ? 'Release to assign training' : 'Drop closed lead here'}
@@ -255,7 +255,7 @@ export default function TrainingDropBox({ leads }) {
         ) : (
           <div className="max-h-[240px] space-y-2 overflow-auto">
             {passed.map((client) => (
-              <article key={client.Client_ID} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+              <article key={client.Client_ID} className="rounded-lg border border-sky-100 bg-white p-2">
                 <div className="flex items-start justify-between gap-2">
                   <p className="truncate text-sm font-medium">{client.Client_Name}</p>
                   <span className={`rounded px-1.5 py-0.5 text-[10px] ${trainingColor(client.Training_Status)}`}>

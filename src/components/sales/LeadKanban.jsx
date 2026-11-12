@@ -201,10 +201,7 @@ export default function LeadKanban() {
       <CallAlerts leads={leads} now={now} onSelect={openLead} />
       {tableError ? <p className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{tableError}</p> : null}
 
-      <div className="grid items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)_280px]">
-      <div className="lg:sticky lg:top-20">
-        <TrainingDropBox leads={leads} />
-      </div>
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
       <div>
       <div className="max-h-[70vh] overflow-auto rounded border border-slate-300 bg-white">
         <table className="min-w-[1400px] w-full border-collapse text-left text-sm">
@@ -317,7 +314,13 @@ export default function LeadKanban() {
         </div>
       </div>
       </div>
-      <div className="lg:sticky lg:top-20">
+      <div className="flex flex-col lg:sticky lg:top-20 lg:max-h-[calc(100vh-5.5rem)] lg:overflow-auto">
+        <TrainingDropBox leads={leads} />
+        <div className="my-3 flex items-center gap-2 px-1" role="separator" aria-label="Call schedule">
+          <span className="h-[2px] flex-1 rounded bg-slate-300" />
+          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Schedule</span>
+          <span className="h-[2px] flex-1 rounded bg-slate-300" />
+        </div>
         <CallScheduleSidebar leads={leads} now={now} onSelect={openLead} />
       </div>
       </div>
