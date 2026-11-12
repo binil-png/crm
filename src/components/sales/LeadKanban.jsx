@@ -11,6 +11,7 @@ import {
   REGIONS,
   SPECIALIZATIONS,
   STATUS_GROUPS,
+  appendStageComment,
   findClientForLead,
   formatDdMmYyyy,
   formatScheduleRelative,
@@ -33,7 +34,7 @@ const PAGE_SIZE = 50;
 
 export default function LeadKanban() {
   const { user } = useAuth();
-  const { leads, leadSheets, createLead, clients } = useCrmStore();
+  const { leads, leadSheets, createLead, clients, updateLead } = useCrmStore();
   const now = useNow(15000);
   const [group, setGroup] = useState('All');
   const [status, setStatus] = useState('All');
@@ -42,9 +43,44 @@ export default function LeadKanban() {
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState(null);
+  const [commentsLead, setCommentsLead] = useState(null);
   const [closing, setClosing] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [statusBusy, setStatusBusy] = useState('');
+  const [tableError, setTableError] = useState('');
   const skipRowClick = useRef(false);
+
+  const latestLead = (lead) => leads.find((item) => leadKey(item) === leadKey(lead)) || lead;
+
+  const openLead = (lead) => {
+    setCommentsLead(null);
+    setSelected(lead);
+  };
+
+  const openComments = (event, lead) => {
+    event.stopPropagation();
+    setSelected(null);
+    setCommentsLead(lead);
+  };
+
+  const changeStatus = async (lead, nextStatus) => {
+    if (!nextStatus || nextStatus === lead.Status) return;
+    skipRowClick.current = true;
+    setStatusBusy(leadKey(lead));
+    setTableError('');
+    try {
+      const saved = await updateLead(lead, {
+        Status: nextStatus,
+        Comments: appendStageComment(lead.Comments, `Status changed to ${nextStatus}`),
+      });
+      setSelected((current) => (current && leadKey(current) === leadKey(saved) ? saved : current));
+      setCommentsLead((current) => (current && leadKey(current) === leadKey(saved) ? saved : current));
+    } catch (err) {
+      setTableError(err.message || 'Could not update status.');
+    } finally {
+      setStatusBusy('');
+    }
+  };
 
   const executives = useMemo(
     () => [...new Set(leads.map((lead) => lead.Executive).filter(Boolean))],
@@ -162,7 +198,8 @@ export default function LeadKanban() {
         </select>
       </div>
 
-      <CallAlerts leads={leads} now={now} onSelect={setSelected} />
+      <CallAlerts leads={leads} now={now} onSelect={openLead} />
+      {tableError ? <p className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{tableError}</p> : null}
 
       <div className="grid items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)_280px]">
       <div className="lg:sticky lg:top-20">
@@ -204,15 +241,17 @@ export default function LeadKanban() {
                       skipRowClick.current = false;
                       return;
                     }
-                    setSelected(lead);
+                    openLead(lead);
                   }}
                 >
                   {index === 0
                     ? ['Sheet', ...LEAD_HEADERS].map((header) =>
                         header === 'Comments' ? (
-                          <td key={`${leadKey(lead)}-c-${index}`} className="min-w-[280px] max-w-[420px] whitespace-pre-wrap border border-slate-300 px-2 py-2 align-top">
-                            {comment.raw}
-                          </td>
+                          <CommentCell
+                            key={`${leadKey(lead)}-c-${index}`}
+                            comment={comment}
+                            onOpen={(event) => openComments(event, lead)}
+                          />
                         ) : (
                           <td
                             key={header}
@@ -224,17 +263,13 @@ export default function LeadKanban() {
                             ) : header === 'Scheduled Date' ? (
                               <ScheduleStamp lead={lead} now={now} />
                             ) : header === 'Status' ? (
-                              <div>
-                                <span className={`rounded px-2 py-0.5 text-xs ${pipelineColor(lead.Status)}`}>{lead.Status}</span>
-                                {trainingClient ? (
-                                  <p className="mt-1 text-[11px] text-sky-700">
-                                    Passed to training
-                                    {trainingClient.Training_Status ? ` · ${trainingClient.Training_Status}` : ''}
-                                  </p>
-                                ) : canPass ? (
-                                  <p className="mt-1 text-[11px] text-emerald-700">Drag to training box</p>
-                                ) : null}
-                              </div>
+                              <StatusSelect
+                                lead={lead}
+                                busy={statusBusy === leadKey(lead)}
+                                trainingClient={trainingClient}
+                                canPass={canPass}
+                                onChange={changeStatus}
+                              />
                             ) : (
                               String(lead[header] || '—')
                             )}
@@ -242,9 +277,7 @@ export default function LeadKanban() {
                         )
                       )
                     : (
-                      <td className="min-w-[280px] max-w-[420px] whitespace-pre-wrap border border-slate-300 px-2 py-2 align-top">
-                        {comment.raw}
-                      </td>
+                      <CommentCell comment={comment} onOpen={(event) => openComments(event, lead)} />
                     )}
                 </tr>
               ));
@@ -285,7 +318,7 @@ export default function LeadKanban() {
       </div>
       </div>
       <div className="lg:sticky lg:top-20">
-        <CallScheduleSidebar leads={leads} now={now} onSelect={setSelected} />
+        <CallScheduleSidebar leads={leads} now={now} onSelect={openLead} />
       </div>
       </div>
 
@@ -304,7 +337,7 @@ export default function LeadKanban() {
 
       {selected ? (
         <LeadModal
-          lead={selected}
+          lead={latestLead(selected)}
           onClose={() => setSelected(null)}
           onCloseDeal={(lead) => {
             setSelected(null);
@@ -313,8 +346,61 @@ export default function LeadKanban() {
         />
       ) : null}
 
+      {commentsLead ? (
+        <LeadModal
+          lead={latestLead(commentsLead)}
+          mode="comments"
+          onClose={() => setCommentsLead(null)}
+        />
+      ) : null}
+
       {closing ? <SalesCloseModal lead={closing} onClose={() => setClosing(null)} /> : null}
     </section>
+  );
+}
+
+function CommentCell({ comment, onOpen }) {
+  return (
+    <td
+      className="min-w-[280px] max-w-[420px] cursor-pointer whitespace-pre-wrap border border-slate-300 px-2 py-2 align-top hover:bg-sky-50"
+      title="View comments"
+      onClick={onOpen}
+    >
+      {comment.raw}
+    </td>
+  );
+}
+
+function StatusSelect({ lead, busy, trainingClient, canPass, onChange }) {
+  const current = lead.Status || 'New';
+  const options = PIPELINE_STATUSES.includes(current) ? PIPELINE_STATUSES : [current, ...PIPELINE_STATUSES];
+  return (
+    <div
+      className="min-w-[160px]"
+      onClick={(event) => event.stopPropagation()}
+      onMouseDown={(event) => event.stopPropagation()}
+    >
+      <select
+        disabled={busy}
+        className={`w-full max-w-[190px] rounded border border-slate-200 px-1.5 py-1 text-xs ${pipelineColor(current)}`}
+        value={current}
+        onChange={(event) => onChange(lead, event.target.value)}
+      >
+        {options.map((item) => (
+          <option key={item} value={item}>
+            {item}
+          </option>
+        ))}
+      </select>
+      {trainingClient ? (
+        <p className="mt-1 text-[11px] text-sky-700">
+          Passed to training
+          {trainingClient.Training_Status ? ` · ${trainingClient.Training_Status}` : ''}
+        </p>
+      ) : canPass ? (
+        <p className="mt-1 text-[11px] text-emerald-700">Drag to training box</p>
+      ) : null}
+    </div>
   );
 }
 

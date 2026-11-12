@@ -25,9 +25,10 @@ import {
 import Modal from '../shared/Modal';
 import ScheduleDateTimeFields from './ScheduleDateTimeFields';
 
-export default function LeadModal({ lead, onClose, onCloseDeal }) {
+export default function LeadModal({ lead, onClose, onCloseDeal, mode = 'full' }) {
   const { user } = useAuth();
   const { updateLead, passToTraining, scheduleCall, clients } = useCrmStore();
+  const commentsOnly = mode === 'comments';
   const [form, setForm] = useState({ ...lead });
   const [stageNote, setStageNote] = useState('');
   const [demoStart, setDemoStart] = useState(toLocalInput(lead['Scheduled Date']) || toLocalInput(new Date().toISOString()));
@@ -137,6 +138,59 @@ export default function LeadModal({ lead, onClose, onCloseDeal }) {
       setBusy(false);
     }
   };
+
+  const commentsPanel = (
+        <div className={commentsOnly ? '' : 'md:col-span-2 rounded border border-slate-200 p-3'}>
+          <p className="text-sm font-medium">Comments</p>
+          <div className="mt-2 space-y-1">
+            {parseStageComments(form.Comments).length === 0 ? (
+              <p className="text-sm text-slate-500">No comments yet.</p>
+            ) : (
+              parseStageComments(form.Comments).map((item) => (
+                <p key={item.num} className="rounded bg-slate-50 px-2 py-1 text-sm">
+                  {item.raw}
+                </p>
+              ))
+            )}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <input
+              className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
+              value={stageNote}
+              onChange={(e) => setStageNote(e.target.value)}
+              placeholder={`Stage ${parseStageComments(form.Comments).reduce((max, item) => Math.max(max, item.num), 0) + 1} message`}
+            />
+            <button
+              type="button"
+              disabled={busy || !stageNote.trim()}
+              onClick={async () => {
+                setBusy(true);
+                setError('');
+                try {
+                  await persist(form, stageNote.trim());
+                  setStageNote('');
+                } catch (err) {
+                  setError(err.message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              className="rounded bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50"
+            >
+              Add comment
+            </button>
+          </div>
+        </div>
+  );
+
+  if (commentsOnly) {
+    return (
+      <Modal title={`Comments · ${form['Customer Name']}`} onClose={onClose}>
+        {error ? <p className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
+        {commentsPanel}
+      </Modal>
+    );
+  }
 
   return (
     <Modal title={`${form['Customer Name']} · ${form._sheet} #${form['Sl No']}`} onClose={onClose} wide>
@@ -248,47 +302,7 @@ export default function LeadModal({ lead, onClose, onCloseDeal }) {
             }}
           />
         </div>
-        <div className="md:col-span-2 rounded border border-slate-200 p-3">
-          <p className="text-sm font-medium">Comments</p>
-          <div className="mt-2 space-y-1">
-            {parseStageComments(form.Comments).length === 0 ? (
-              <p className="text-sm text-slate-500">No comments yet.</p>
-            ) : (
-              parseStageComments(form.Comments).map((item) => (
-                <p key={item.num} className="rounded bg-slate-50 px-2 py-1 text-sm">
-                  {item.raw}
-                </p>
-              ))
-            )}
-          </div>
-          <div className="mt-3 flex gap-2">
-            <input
-              className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
-              value={stageNote}
-              onChange={(e) => setStageNote(e.target.value)}
-              placeholder={`Stage ${parseStageComments(form.Comments).reduce((max, item) => Math.max(max, item.num), 0) + 1} message`}
-            />
-            <button
-              type="button"
-              disabled={busy || !stageNote.trim()}
-              onClick={async () => {
-                setBusy(true);
-                setError('');
-                try {
-                  await persist(form, stageNote.trim());
-                  setStageNote('');
-                } catch (err) {
-                  setError(err.message);
-                } finally {
-                  setBusy(false);
-                }
-              }}
-              className="rounded bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50"
-            >
-              Add comment
-            </button>
-          </div>
-        </div>
+        {commentsPanel}
       </div>
 
       {!closed ? (
