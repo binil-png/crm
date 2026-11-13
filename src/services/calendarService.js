@@ -26,17 +26,20 @@ const buildEventResource = ({ title, start, end, attendees, description }) => ({
   },
 });
 
-export const createCalendarEvent = async ({ title, start, end, attendees, description }) => {
+const resolveCalendar = (calendarId) => String(calendarId || getCalendarId() || 'primary').trim() || 'primary';
+
+export const createCalendarEvent = async ({ title, start, end, attendees, description, calendarId }) => {
   if (isDemoMode()) {
     return mock.mockCreateCalendarEvent({ title, start, end, attendees });
   }
 
   const resource = buildEventResource({ title, start, end, attendees, description });
-  const calendarId = encodeURIComponent(getCalendarId());
+  const target = resolveCalendar(calendarId);
+  const encoded = encodeURIComponent(target);
 
   if (isGapiReady()) {
     const response = await window.gapi.client.calendar.events.insert({
-      calendarId: getCalendarId(),
+      calendarId: target,
       conferenceDataVersion: 1,
       sendUpdates: 'all',
       resource,
@@ -45,12 +48,12 @@ export const createCalendarEvent = async ({ title, start, end, attendees, descri
   }
 
   return googleFetch(
-    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?conferenceDataVersion=1&sendUpdates=all`,
+    `https://www.googleapis.com/calendar/v3/calendars/${encoded}/events?conferenceDataVersion=1&sendUpdates=all`,
     { method: 'POST', body: JSON.stringify(resource) }
   );
 };
 
-export const patchCalendarEvent = async (eventId, { start, end, title, attendees }) => {
+export const patchCalendarEvent = async (eventId, { start, end, title, attendees, calendarId }) => {
   if (!eventId) throw new Error('Calendar event id is missing.');
   if (isDemoMode()) return mock.mockPatchCalendarEvent(eventId, { start, end });
 
@@ -60,11 +63,12 @@ export const patchCalendarEvent = async (eventId, { start, end, title, attendees
     ...(attendees ? { attendees: splitEmails(attendees).map((email) => ({ email })) } : {}),
   };
 
-  const calendarId = encodeURIComponent(getCalendarId());
+  const target = resolveCalendar(calendarId);
+  const encoded = encodeURIComponent(target);
 
   if (isGapiReady()) {
     const response = await window.gapi.client.calendar.events.patch({
-      calendarId: getCalendarId(),
+      calendarId: target,
       eventId,
       sendUpdates: 'all',
       conferenceDataVersion: 1,
@@ -76,7 +80,7 @@ export const patchCalendarEvent = async (eventId, { start, end, title, attendees
   const token = getAccessToken();
   if (!token) throw new Error('Not signed in.');
   return googleFetch(
-    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+    `https://www.googleapis.com/calendar/v3/calendars/${encoded}/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
     { method: 'PATCH', body: JSON.stringify(resource) }
   );
 };

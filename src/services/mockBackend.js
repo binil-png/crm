@@ -239,6 +239,7 @@ const seedDb = () => {
           Status: 'Scheduled',
           Session_Type: 'Training',
           Cancel_Reason: '',
+          Calendar_ID: 'primary',
         },
         HEADERS[SHEETS.SESSIONS]
       ),
@@ -252,6 +253,7 @@ const seedDb = () => {
           Email: 'demo@example.com',
           'User Type': 'Sales',
           'User Role': 'Admin',
+          'Calendar ID': 'primary',
         },
         HEADERS[SHEETS.USERS]
       ),
@@ -261,6 +263,7 @@ const seedDb = () => {
           Email: 'anjali.training@example.com',
           'User Type': 'Technical support',
           'User Role': 'Team member',
+          'Calendar ID': 'primary',
         },
         HEADERS[SHEETS.USERS]
       ),

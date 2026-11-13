@@ -70,7 +70,10 @@ export default function SetupScreen({ onSaved }) {
           onChange={(e) => setCalendarId(e.target.value)}
           placeholder="primary"
         />
-        <p className="mt-1 text-xs text-slate-500">Use primary for the signed-in user’s calendar, or a calendar ID email.</p>
+        <p className="mt-1 text-xs text-slate-500">
+          Fallback only. Each person on the Users sheet can have their own Calendar ID; training sessions are written
+          to that calendar.
+        </p>
 
         <div className="mt-6 flex flex-wrap gap-2">
           <button type="button" onClick={() => save(false)} className="rounded bg-slate-900 px-4 py-2 text-white">

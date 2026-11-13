@@ -16,6 +16,7 @@ import {
   STORAGE_KEYS,
   isAdminRole,
   isLeadRole,
+  normalizeCalendarId,
   normalizeUserRole,
   normalizeUserType,
   userTypeToAppRole,
@@ -45,6 +46,7 @@ const fromSheetRow = (row) => ({
   email: String(row?.Email || '').trim().toLowerCase(),
   userType: normalizeUserType(row?.['User Type']) || 'Sales',
   userRole: normalizeUserRole(row?.['User Role']),
+  calendarId: normalizeCalendarId(row?.['Calendar ID'] || row?.calendarId, row?.Email || row?.email),
 });
 
 export function AuthProvider({ children }) {
@@ -120,7 +122,13 @@ export function AuthProvider({ children }) {
     if (!row) return;
     const nextType = normalizeUserType(row['User Type']) || 'Sales';
     const nextRole = normalizeUserRole(row['User Role']);
-    if (directory?.userType === nextType && directory?.userRole === nextRole && directory?.username === String(row.Username || '').trim()) {
+    const nextCalendar = normalizeCalendarId(row['Calendar ID'], row.Email);
+    if (
+      directory?.userType === nextType &&
+      directory?.userRole === nextRole &&
+      directory?.username === String(row.Username || '').trim() &&
+      directory?.calendarId === nextCalendar
+    ) {
       return;
     }
     applyDirectory(row);
@@ -202,6 +210,7 @@ export function AuthProvider({ children }) {
     () => ({
       user,
       directory,
+      calendarId: directory?.calendarId || 'primary',
       role,
       roleLabel: ROLE_LABELS[role],
       userType: directory?.userType || ROLE_LABELS[role],

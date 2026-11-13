@@ -21,12 +21,19 @@ const emptySlot = (type, clientName) => ({
 
 export default function ScheduleSessionModal({ client, onClose }) {
   const { user } = useAuth();
-  const { scheduleSessions, clients, sessions } = useCrmStore();
+  const { scheduleSessions, clients, sessions, users } = useCrmStore();
   const team = useMemo(
-    () => listTrainingTeam({ clients, sessions, extra: [client.Assigned_Trainer, user?.email] }),
-    [clients, sessions, client.Assigned_Trainer, user?.email]
+    () =>
+      listTrainingTeam({
+        clients,
+        sessions,
+        users,
+        extra: [client.Assigned_Trainer, user?.email],
+        currentEmail: user?.email,
+      }),
+    [clients, sessions, users, client.Assigned_Trainer, user?.email]
   );
-  const [trainerEmail, setTrainerEmail] = useState(client.Assigned_Trainer || user?.email || team[0]?.email || '');
+  const [trainerEmail, setTrainerEmail] = useState(user?.email || team[0]?.email || '');
   const [workType, setWorkType] = useState(clientWorkType(client));
   const [slots, setSlots] = useState([emptySlot(clientWorkType(client), client.Client_Name)]);
   const [busy, setBusy] = useState(false);
@@ -68,7 +75,13 @@ export default function ScheduleSessionModal({ client, onClose }) {
     <Modal title={`Schedule session · ${client.Client_Name}`} onClose={onClose} wide>
       <form onSubmit={submit} className="space-y-4">
         {error ? <p className="rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
-        <TrainerSelect value={trainerEmail} onChange={setTrainerEmail} team={team} required />
+        <TrainerSelect
+          value={trainerEmail}
+          onChange={setTrainerEmail}
+          team={team}
+          currentEmail={user?.email}
+          required
+        />
         <div>
           <p className="mb-1 text-sm">Session type</p>
           <WorkTypeSelect
@@ -89,7 +102,8 @@ export default function ScheduleSessionModal({ client, onClose }) {
           />
         </div>
         <p className="text-sm text-slate-500">
-          Book a Training session or a Doubt clarification. The selected trainer and client are invited.
+          You are selected by default. Choose another training team member to put the session on their calendar. They
+          must share that calendar with you as “Make changes to events”.
         </p>
 
         {slots.map((slot, index) => (

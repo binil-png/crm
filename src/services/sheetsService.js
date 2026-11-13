@@ -427,6 +427,7 @@ const toDirectoryUser = (row = {}) => ({
   Email: String(row.Email || '').trim().toLowerCase(),
   'User Type': String(row['User Type'] || '').trim(),
   'User Role': String(row['User Role'] || '').trim(),
+  'Calendar ID': String(row['Calendar ID'] || '').trim(),
 });
 
 export const getUsers = async () => (await getObjectsSafe(SHEETS.USERS)).map(toDirectoryUser);
@@ -445,11 +446,13 @@ export const upsertDirectoryUser = async ({ name, email }) => {
       Email: address,
       'User Type': existing['User Type'] || 'Sales',
       'User Role': existing['User Role'] || (users.length === 1 ? 'Admin' : 'Team member'),
+      'Calendar ID': existing['Calendar ID'] || 'primary',
     };
     if (
       next.Username !== existing.Username ||
       next['User Type'] !== existing['User Type'] ||
-      next['User Role'] !== existing['User Role']
+      next['User Role'] !== existing['User Role'] ||
+      next['Calendar ID'] !== existing['Calendar ID']
     ) {
       return toDirectoryUser(await updateDirectoryUser(address, next));
     }
@@ -461,6 +464,7 @@ export const upsertDirectoryUser = async ({ name, email }) => {
     Email: address,
     'User Type': users.length === 0 ? 'Sales' : 'Sales',
     'User Role': users.length === 0 ? 'Admin' : 'Team member',
+    'Calendar ID': 'primary',
   };
   await appendObject(SHEETS.USERS, payload);
   return toDirectoryUser(payload);

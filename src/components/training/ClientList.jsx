@@ -9,40 +9,57 @@ import {
   isTrainingCompleted,
   isTrainingNotStarted,
   isTrainingOngoing,
+  listTrainingTeam,
   normalizeTrainingStatus,
+  sameEmail,
   trainingColor,
   workTypeColor,
 } from '../../utils/constants';
 import ScheduleSessionModal from './ScheduleSessionModal';
 import SessionList from './SessionList';
+import TrainerSelect, { ALL_TRAINERS } from './TrainerSelect';
+import TrainerStatusBoard from './TrainerStatusBoard';
 import WorkTypeSelect from './WorkTypeSelect';
 
 export default function ClientList() {
   const { user } = useAuth();
-  const { clients, leads, pickClient, sessions, setClientTrainingStatus, updateClient } = useCrmStore();
-  const [statusFilter, setStatusFilter] = useState('Not started');
+  const { clients, leads, pickClient, assignTrainer, sessions, users, setClientTrainingStatus, updateClient } =
+    useCrmStore();
+  const team = useMemo(
+    () => listTrainingTeam({ clients, sessions, users, extra: [user?.email], currentEmail: user?.email }),
+    [clients, sessions, users, user?.email]
+  );
+  const [statusFilter, setStatusFilter] = useState('All');
   const [typeFilter, setTypeFilter] = useState('All');
+  const [trainerFilter, setTrainerFilter] = useState(ALL_TRAINERS);
   const [scheduling, setScheduling] = useState(null);
   const [openId, setOpenId] = useState('');
   const [busyId, setBusyId] = useState('');
+  const [assignEmail, setAssignEmail] = useState({});
   const [error, setError] = useState('');
+
+  const scoped = useMemo(() => {
+    if (trainerFilter === ALL_TRAINERS) return clients;
+    if (trainerFilter === 'unassigned') return clients.filter((client) => !String(client.Assigned_Trainer || '').trim());
+    return clients.filter((client) => sameEmail(client.Assigned_Trainer, trainerFilter));
+  }, [clients, trainerFilter]);
 
   const counts = useMemo(() => {
     const byStatus = {
-      'Not started': clients.filter(isTrainingNotStarted).length,
-      Ongoing: clients.filter(isTrainingOngoing).length,
-      Completed: clients.filter(isTrainingCompleted).length,
-      All: clients.length,
+      'Not started': scoped.filter(isTrainingNotStarted).length,
+      Ongoing: scoped.filter(isTrainingOngoing).length,
+      Completed: scoped.filter(isTrainingCompleted).length,
+      All: scoped.length,
     };
     const byType = {
-      All: clients.length,
-      Training: clients.filter((client) => clientWorkType(client) === 'Training').length,
-      'Doubt clarification': clients.filter((client) => clientWorkType(client) === 'Doubt clarification').length,
+      All: scoped.length,
+      Training: scoped.filter((client) => clientWorkType(client) === 'Training').length,
+      'Doubt clarification': scoped.filter((client) => clientWorkType(client) === 'Doubt clarification').length,
     };
     return { byStatus, byType };
-  }, [clients]);
+  }, [scoped]);
 
-  const visible = clients.filter((client) => {
+  const visible = scoped.filter((client) => {
     const status = normalizeTrainingStatus(client.Training_Status);
     if (statusFilter !== 'All' && status !== statusFilter) return false;
     if (typeFilter !== 'All' && clientWorkType(client) !== typeFilter) return false;
@@ -61,10 +78,18 @@ export default function ClientList() {
     }
   };
 
-  const pick = async (client) => {
+  const pick = async (client, trainerEmail = user?.email || '') => {
+    if (!trainerEmail) {
+      setError('Select a trainer before assigning.');
+      return;
+    }
     await run(client.Client_ID, async () => {
-      await pickClient(client.Client_ID, user?.email || '');
-      setStatusFilter('Ongoing');
+      if (isTrainingNotStarted(client)) {
+        await pickClient(client.Client_ID, trainerEmail);
+        setStatusFilter('Ongoing');
+      } else {
+        await assignTrainer(client.Client_ID, trainerEmail);
+      }
     });
   };
 
@@ -73,12 +98,35 @@ export default function ClientList() {
       <div className="mb-4">
         <h2 className="text-lg font-semibold">Clients from sales</h2>
         <p className="text-sm text-slate-500">
-          Status is Not started, Ongoing, or Completed. Work is Training or Doubt clarification. Pick a client, then
-          schedule the matching session.
+          View every trainer’s clients and status, or filter to one person. You stay the default assignee unless you
+          pick someone else.
         </p>
       </div>
 
       {error ? <p className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
+
+      <div className="mb-4">
+        <TrainerStatusBoard
+          team={team}
+          clients={clients}
+          sessions={sessions}
+          currentEmail={user?.email}
+          selectedEmail={trainerFilter}
+          onSelect={setTrainerFilter}
+        />
+      </div>
+
+      <div className="mb-3 max-w-sm">
+        <TrainerSelect
+          allowAll
+          allowUnassigned
+          label="View trainer"
+          value={trainerFilter}
+          onChange={setTrainerFilter}
+          team={team}
+          currentEmail={user?.email}
+        />
+      </div>
 
       <div className="mb-3 flex flex-wrap gap-2">
         {['Not started', 'Ongoing', 'Completed', 'All'].map((item) => (
@@ -123,8 +171,13 @@ export default function ClientList() {
           const relatedSessions = sessions.filter((session) => session.Client_ID === client.Client_ID);
           const status = normalizeTrainingStatus(client.Training_Status);
           const workType = clientWorkType(client);
-          const notStarted = isTrainingNotStarted(client);
-          const mine = client.Assigned_Trainer && client.Assigned_Trainer === user?.email;
+          const mine = sameEmail(client.Assigned_Trainer, user?.email);
+          const selectedTrainer = assignEmail[client.Client_ID] || user?.email || '';
+          const selectedMember = team.find((member) => sameEmail(member.email, selectedTrainer));
+          const alreadyAssigned = sameEmail(client.Assigned_Trainer, selectedTrainer);
+          const assignLabel = sameEmail(selectedTrainer, user?.email)
+            ? 'Assign to me'
+            : `Assign to ${selectedMember?.name || selectedTrainer || 'trainer'}`;
 
           return (
             <article key={client.Client_ID} className="rounded-lg border border-slate-200 bg-white p-4">
@@ -178,29 +231,31 @@ export default function ClientList() {
                   {mine ? ' (you)' : ''}
                 </p>
               ) : (
-                <p className="mt-2 text-sm text-amber-700">Not picked yet</p>
+                <p className="mt-2 text-sm text-amber-700">Not picked yet — defaults to you</p>
               )}
 
-              <div className="mt-3 flex flex-wrap gap-2">
-                {notStarted ? (
-                  <button
-                    type="button"
-                    disabled={busyId === client.Client_ID}
-                    className="rounded bg-sky-700 px-3 py-2 text-sm text-white disabled:opacity-50"
-                    onClick={() => pick(client)}
-                  >
-                    {busyId === client.Client_ID ? 'Saving…' : 'Assign to me'}
-                  </button>
-                ) : null}
+              {!isTrainingCompleted(client) ? (
+                <div className="mt-3 max-w-sm">
+                  <TrainerSelect
+                    compact
+                    label="Training team member"
+                    value={selectedTrainer}
+                    onChange={(email) => setAssignEmail((prev) => ({ ...prev, [client.Client_ID]: email }))}
+                    team={team}
+                    currentEmail={user?.email}
+                  />
+                </div>
+              ) : null}
 
-                {!notStarted && !isTrainingCompleted(client) && !mine ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {!isTrainingCompleted(client) ? (
                   <button
                     type="button"
-                    disabled={busyId === client.Client_ID}
-                    className="rounded border border-slate-300 px-3 py-2 text-sm disabled:opacity-50"
-                    onClick={() => pick(client)}
+                    disabled={busyId === client.Client_ID || !selectedTrainer || alreadyAssigned}
+                    className="rounded bg-sky-700 px-3 py-2 text-sm text-white disabled:opacity-50"
+                    onClick={() => pick(client, selectedTrainer)}
                   >
-                    Reassign to me
+                    {busyId === client.Client_ID ? 'Saving…' : alreadyAssigned ? 'Assigned' : assignLabel}
                   </button>
                 ) : null}
 

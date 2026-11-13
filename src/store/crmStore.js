@@ -7,6 +7,7 @@ import {
   appendStageComment,
   createId,
   formatDdMmYyyy,
+  calendarIdForEmail,
   formatDdMmYyyyHm,
   leadKey,
   nowIso,
@@ -200,20 +201,30 @@ export const useCrmStore = create((set, get) => ({
 
   scheduleSessions: async ({ client, trainerEmail, sessions, workType }) => {
     const created = [];
+    const trainerCalendarId = calendarIdForEmail(trainerEmail, get().users);
     for (const item of sessions) {
       const sessionType = item.sessionType || workType || client.Work_Type || 'Training';
-      const attendees = [client.Contact_Email, trainerEmail].filter(Boolean).join(',');
-      const event = await createCalendarEvent({
-        title: item.title,
-        start: item.start,
-        end: item.end,
-        attendees,
-        description: `${sessionType} session for ${client.Client_Name}`,
-      });
+      const attendees = [client.Contact_Email, trainerEmail, currentUserEmail()].filter(Boolean).join(',');
+      let event;
+      try {
+        event = await createCalendarEvent({
+          title: item.title,
+          start: item.start,
+          end: item.end,
+          attendees,
+          description: `${sessionType} session for ${client.Client_Name}`,
+          calendarId: trainerCalendarId,
+        });
+      } catch (error) {
+        throw new Error(
+          `Could not add this session to ${trainerEmail}'s calendar (${trainerCalendarId}). Share that calendar with you as "Make changes to events", or set Calendar ID on the Users sheet. ${error.message || ''}`
+        );
+      }
       const session = {
         Session_ID: createId('SS'),
         Client_ID: client.Client_ID,
         Calendar_Event_ID: event.id || '',
+        Calendar_ID: trainerCalendarId,
         Session_Title: item.title,
         Start_Time: new Date(item.start).toISOString(),
         End_Time: new Date(item.end).toISOString(),
@@ -261,8 +272,9 @@ export const useCrmStore = create((set, get) => ({
     const nextStart = new Date(start);
     const nextEnd = new Date(end);
     if (session.Calendar_Event_ID) {
+      const calendarId = session.Calendar_ID || calendarIdForEmail(session.Trainer_Email, get().users);
       try {
-        await patchCalendarEvent(session.Calendar_Event_ID, { start: nextStart, end: nextEnd });
+        await patchCalendarEvent(session.Calendar_Event_ID, { start: nextStart, end: nextEnd, calendarId });
       } catch (error) {
         console.warn(error);
       }

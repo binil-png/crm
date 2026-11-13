@@ -29,7 +29,8 @@ export default function UsersPanel() {
       <h2 className="text-lg font-semibold">Users</h2>
       <p className="mb-4 text-sm text-slate-500">
         Google sign-in writes Username and Email here. User Type chooses Sales or Technical support. User Role is Team
-        member, Team lead, or Admin.
+        member, Team lead, or Admin. Calendar ID is that person’s Google Calendar — use primary, their email, or a
+        shared calendar ID. Training sessions assigned to them are created on that calendar.
       </p>
       {error ? <p className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
       {users.length === 0 ? (
@@ -43,6 +44,7 @@ export default function UsersPanel() {
                 <th className="px-3 py-2">Email</th>
                 <th className="px-3 py-2">User type</th>
                 <th className="px-3 py-2">User role</th>
+                <th className="px-3 py-2">Calendar ID</th>
               </tr>
             </thead>
             <tbody>
@@ -73,6 +75,18 @@ export default function UsersPanel() {
                         <option key={item}>{item}</option>
                       ))}
                     </select>
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      defaultValue={row['Calendar ID'] || 'primary'}
+                      disabled={busyEmail === row.Email}
+                      className="w-56 rounded border border-slate-300 px-2 py-1"
+                      placeholder="primary or calendar email"
+                      onBlur={(event) => {
+                        const next = event.target.value.trim() || 'primary';
+                        if (next !== (row['Calendar ID'] || 'primary')) save(row, { 'Calendar ID': next });
+                      }}
+                    />
                   </td>
                 </tr>
               ))}

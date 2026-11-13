@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, GripVertical } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
@@ -9,13 +9,15 @@ import {
   listTrainingTeam,
   normalizeTrainingStatus,
   parseSheetDate,
+  sameEmail,
   sessionTitleForType,
   sessionWorkType,
   sessionColor,
   trainingColor,
   workTypeColor,
 } from '../../utils/constants';
-import TrainerSelect from './TrainerSelect';
+import TrainerSelect, { ALL_TRAINERS } from './TrainerSelect';
+import TrainerStatusBoard from './TrainerStatusBoard';
 import WorkTypeSelect from './WorkTypeSelect';
 
 const START_HOUR = 8;
@@ -98,14 +100,15 @@ const readDragPayload = (event) => {
 };
 
 export default function TrainingCalendar() {
-  const { user } = useAuth();
-  const { clients, sessions, scheduleSessions, rescheduleSession } = useCrmStore();
+  const { user, calendarId: myCalendarId, applyDirectory } = useAuth();
+  const { clients, sessions, users, scheduleSessions, rescheduleSession, updateDirectoryUser } = useCrmStore();
   const team = useMemo(
-    () => listTrainingTeam({ clients, sessions, extra: [user?.email] }),
-    [clients, sessions, user?.email]
+    () => listTrainingTeam({ clients, sessions, users, extra: [user?.email], currentEmail: user?.email }),
+    [clients, sessions, users, user?.email]
   );
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [duration, setDuration] = useState(60);
+  const [viewEmail, setViewEmail] = useState(ALL_TRAINERS);
   const [trainerEmail, setTrainerEmail] = useState(user?.email || team[0]?.email || '');
   const [workType, setWorkType] = useState('Training');
   const [typeFilter, setTypeFilter] = useState('All');
@@ -115,6 +118,16 @@ export default function TrainingCalendar() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [activeSession, setActiveSession] = useState(null);
+  const [ownCalendarId, setOwnCalendarId] = useState(myCalendarId || 'primary');
+  const [savingCalendar, setSavingCalendar] = useState(false);
+
+  useEffect(() => {
+    if (myCalendarId) setOwnCalendarId(myCalendarId);
+  }, [myCalendarId]);
+
+  useEffect(() => {
+    if (user?.email && !trainerEmail) setTrainerEmail(user.email);
+  }, [user?.email, trainerEmail]);
   const previewRef = useRef(null);
   const previewPos = useRef({ x: 0, y: 0 });
 
@@ -170,13 +183,31 @@ export default function TrainingCalendar() {
   });
   const selected = clients.find((client) => client.Client_ID === selectedId) || null;
 
+  const viewTrainer = team.find((member) => sameEmail(member.email, viewEmail));
   const visibleSessions = sessions.filter((session) => {
     if (session.Status === 'Cancelled') return false;
+    if (viewEmail && viewEmail !== ALL_TRAINERS && !sameEmail(session.Trainer_Email, viewEmail)) {
+      return false;
+    }
     const start = parseSheetDate(session.Start_Time);
     if (!start) return false;
     const weekEnd = addDays(weekStart, DAY_COUNT);
     return start >= weekStart && start < weekEnd;
   });
+
+  const saveOwnCalendar = async () => {
+    if (!user?.email) return;
+    setSavingCalendar(true);
+    setError('');
+    try {
+      const next = await updateDirectoryUser(user.email, { 'Calendar ID': ownCalendarId.trim() || 'primary' });
+      applyDirectory(next);
+    } catch (err) {
+      setError(err.message || 'Could not save calendar ID.');
+    } finally {
+      setSavingCalendar(false);
+    }
+  };
 
   const placeAt = async (day, hour, minute, payload) => {
     const start = atSlot(day, hour, minute);
@@ -245,7 +276,13 @@ export default function TrainingCalendar() {
         <div>
           <h2 className="text-lg font-semibold">Training calendar</h2>
           <p className="text-sm text-slate-500">
-            Drag a client onto a slot. Choose Training or Doubt clarification before you place the session.
+            View every trainer’s sessions and status, or open one person’s calendar. New sessions still default to you
+            unless you pick someone else.
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            {viewEmail === ALL_TRAINERS
+              ? `Showing all trainers · ${visibleSessions.length} sessions this week`
+              : `Showing ${viewTrainer?.name || viewEmail} · calendar ${viewTrainer?.calendarId || '—'}`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -274,7 +311,26 @@ export default function TrainingCalendar() {
           </button>
           <p className="min-w-[180px] text-sm font-medium">{weekLabel}</p>
           <div className="min-w-[220px]">
-            <TrainerSelect compact value={trainerEmail} onChange={setTrainerEmail} team={team} />
+            <TrainerSelect
+              compact
+              allowAll
+              label="View trainings"
+              value={viewEmail}
+              onChange={setViewEmail}
+              team={team}
+              currentEmail={user?.email}
+            />
+          </div>
+          <div className="min-w-[220px]">
+            <TrainerSelect
+              compact
+              allowEmpty={false}
+              label="Schedule as"
+              value={trainerEmail}
+              onChange={setTrainerEmail}
+              team={team}
+              currentEmail={user?.email}
+            />
           </div>
           <WorkTypeSelect value={workType} onChange={setWorkType} compact />
           <label className="text-sm text-slate-600">
@@ -296,6 +352,40 @@ export default function TrainingCalendar() {
 
       {error ? <p className="rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
       {busy ? <p className="text-sm text-slate-500">Updating calendar…</p> : null}
+
+      <TrainerStatusBoard
+        team={team}
+        clients={clients}
+        sessions={sessions}
+        currentEmail={user?.email}
+        selectedEmail={viewEmail}
+        onSelect={setViewEmail}
+      />
+
+      <div className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <label className="min-w-[240px] flex-1 text-sm">
+          Your calendar ID
+          <input
+            className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-sm"
+            value={ownCalendarId}
+            onChange={(event) => setOwnCalendarId(event.target.value)}
+            placeholder="primary or your Google Calendar ID"
+          />
+        </label>
+        <button
+          type="button"
+          disabled={savingCalendar || !user?.email}
+          className="rounded bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50"
+          onClick={saveOwnCalendar}
+        >
+          {savingCalendar ? 'Saving…' : 'Save calendar'}
+        </button>
+        <p className="w-full text-xs text-slate-500">
+          Saved on the Users sheet and loaded at login. Sessions assigned to you are written here. Use{' '}
+          <code>primary</code>, your email, or a calendar ID from Google Calendar settings. Teammates need “Make
+          changes to events” on this calendar to schedule for you.
+        </p>
+      </div>
 
       <div className="grid items-start gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
         <aside className="rounded-lg border border-slate-200 bg-white p-3 lg:sticky lg:top-16">
@@ -327,6 +417,11 @@ export default function TrainingCalendar() {
                 key={client.Client_ID}
                 client={client}
                 selected={selectedId === client.Client_ID}
+                trainerLabel={
+                  client.Assigned_Trainer
+                    ? team.find((member) => sameEmail(member.email, client.Assigned_Trainer))?.name || client.Assigned_Trainer
+                    : 'Unassigned'
+                }
                 sessionCount={sessions.filter((session) => session.Client_ID === client.Client_ID && session.Status !== 'Cancelled').length}
                 onSelect={() => setSelectedId((id) => (id === client.Client_ID ? '' : client.Client_ID))}
                 onBeginDrag={(event) =>
@@ -384,6 +479,9 @@ export default function TrainingCalendar() {
                   return start && sameDate(start, day);
                 })}
                 clients={clients}
+                team={team}
+                showTrainer={viewEmail === ALL_TRAINERS}
+                currentEmail={user?.email}
                 dragItem={dragItem}
                 onHover={updateHoverSlot}
                 onPlace={(hour, minute, payload) => placeAt(day, hour, minute, payload)}
@@ -434,7 +532,7 @@ export default function TrainingCalendar() {
   );
 }
 
-function ClientChip({ client, selected, sessionCount, onSelect, onBeginDrag, onMoveDrag, onEndDrag }) {
+function ClientChip({ client, selected, sessionCount, trainerLabel, onSelect, onBeginDrag, onMoveDrag, onEndDrag }) {
   return (
     <div
       role="button"
@@ -470,6 +568,7 @@ function ClientChip({ client, selected, sessionCount, onSelect, onBeginDrag, onM
             {normalizeTrainingStatus(client.Training_Status)}
           </span>
           <span className="text-[10px] text-slate-400">{sessionCount === 1 ? '1 session' : `${sessionCount} sessions`}</span>
+          <span className="text-[10px] text-slate-500">{trainerLabel}</span>
         </span>
       </span>
     </div>
@@ -489,6 +588,9 @@ function DayColumn({
   selected,
   sessions,
   clients,
+  team = [],
+  showTrainer = false,
+  currentEmail = '',
   dragItem,
   onHover,
   onPlace,
@@ -573,7 +675,9 @@ function DayColumn({
               dragItem?.id === session.Session_ID ? 'opacity-40' : ''
             }`}
             style={{ top: top + 2, height }}
-            title={`${client?.Client_Name || session.Session_Title} · ${sessionWorkType(session)} · ${formatClock(start.getHours(), start.getMinutes())}–${formatClock(end.getHours(), end.getMinutes())}`}
+            title={`${client?.Client_Name || session.Session_Title} · ${sessionWorkType(session)} · ${
+              team.find((member) => sameEmail(member.email, session.Trainer_Email))?.name || session.Trainer_Email || 'Unassigned'
+            } · ${formatClock(start.getHours(), start.getMinutes())}–${formatClock(end.getHours(), end.getMinutes())} · ${session.Status}`}
           >
             <span className="block truncate font-medium">{client?.Client_Name || session.Session_Title}</span>
             <span className="block truncate opacity-80">
@@ -581,6 +685,15 @@ function DayColumn({
               {start.getMinutes() === 0
                 ? formatClockLabel(start.getHours(), start.getMinutes())
                 : formatClock(start.getHours(), start.getMinutes())}
+              {showTrainer
+                ? ` · ${
+                    sameEmail(session.Trainer_Email, currentEmail)
+                      ? 'You'
+                      : team.find((member) => sameEmail(member.email, session.Trainer_Email))?.name?.split(' ')[0] ||
+                        session.Trainer_Email ||
+                        '—'
+                  }`
+                : ''}
             </span>
           </button>
         );
@@ -675,6 +788,7 @@ function SessionPopover({ session, client, onClose }) {
           {end ? ` – ${formatClock(end.getHours(), end.getMinutes())}` : ''}
         </p>
         <p className="text-sm text-slate-500">{session.Trainer_Email}</p>
+        {session.Calendar_ID ? <p className="text-xs text-slate-400">Calendar: {session.Calendar_ID}</p> : null}
         {error ? <p className="mt-2 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
 
         <label className="mt-4 block text-sm">

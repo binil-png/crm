@@ -87,7 +87,7 @@ export const AUDIT_HEADERS = ['Timestamp', 'User Email', 'Action Taken', 'Client
 
 export const SETTINGS_HEADERS = ['Active CRM Sheets'];
 
-export const USER_HEADERS = ['Username', 'Email', 'User Type', 'User Role'];
+export const USER_HEADERS = ['Username', 'Email', 'User Type', 'User Role', 'Calendar ID'];
 
 export const HEADERS = {
   [SHEETS.SETTINGS]: SETTINGS_HEADERS,
@@ -115,6 +115,7 @@ export const HEADERS = {
     'Status',
     'Session_Type',
     'Cancel_Reason',
+    'Calendar_ID',
   ],
   [SHEETS.LOGS]: [
     'Log_ID',
@@ -256,24 +257,64 @@ export const TRAINING_TEAM = [
   { name: 'Ravi Menon', email: 'ravi.training@example.com' },
 ];
 
-export const listTrainingTeam = ({ clients = [], sessions = [], extra = [] } = {}) => {
+export const normalizeCalendarId = (value, email = '') => {
+  const stored = String(value || '').trim();
+  const address = String(email || '').trim();
+  if (stored && stored.toLowerCase() !== 'primary') return stored;
+  return address || stored || 'primary';
+};
+
+export const calendarIdForEmail = (email, users = [], fallback = 'primary') => {
+  const key = String(email || '').trim().toLowerCase();
+  const row = users.find((item) => String(item.Email || '').trim().toLowerCase() === key);
+  if (row) return normalizeCalendarId(row['Calendar ID'], row.Email);
+  return String(email || '').trim() || fallback;
+};
+
+export const sameEmail = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase() && Boolean(String(a || '').trim());
+
+export const listTrainingTeam = ({ clients = [], sessions = [], users = [], extra = [], currentEmail = '' } = {}) => {
   const map = new Map();
-  TRAINING_TEAM.forEach((member) => map.set(member.email.toLowerCase(), member));
+  users.forEach((row) => {
+    const type = normalizeUserType(row['User Type']);
+    if (type && type !== 'Technical support' && !isAdminRole(row['User Role'])) return;
+    const email = String(row.Email || '').trim();
+    if (!email) return;
+    map.set(email.toLowerCase(), {
+      name: row.Username || email,
+      email,
+      calendarId: normalizeCalendarId(row['Calendar ID'], email),
+    });
+  });
+  if (!users.length) {
+    TRAINING_TEAM.forEach((member) => {
+      if (!map.has(member.email.toLowerCase())) {
+        map.set(member.email.toLowerCase(), { ...member, calendarId: member.email });
+      }
+    });
+  }
   extra.filter(Boolean).forEach((email) => {
     const key = String(email).trim().toLowerCase();
-    if (key && !map.has(key)) map.set(key, { name: email, email });
+    if (key && !map.has(key)) map.set(key, { name: email, email, calendarId: calendarIdForEmail(email, users, email) });
   });
   clients.forEach((client) => {
     const email = String(client.Assigned_Trainer || '').trim();
     const key = email.toLowerCase();
-    if (email && !map.has(key)) map.set(key, { name: email, email });
+    if (email && !map.has(key)) map.set(key, { name: email, email, calendarId: calendarIdForEmail(email, users, email) });
   });
   sessions.forEach((session) => {
     const email = String(session.Trainer_Email || '').trim();
     const key = email.toLowerCase();
-    if (email && !map.has(key)) map.set(key, { name: email, email });
+    if (email && !map.has(key)) map.set(key, { name: email, email, calendarId: calendarIdForEmail(email, users, email) });
   });
-  return [...map.values()];
+  const current = String(currentEmail || '').trim().toLowerCase();
+  return [...map.values()].sort((a, b) => {
+    const aMine = a.email.toLowerCase() === current;
+    const bMine = b.email.toLowerCase() === current;
+    if (aMine && !bMine) return -1;
+    if (bMine && !aMine) return 1;
+    return String(a.name || a.email).localeCompare(String(b.name || b.email));
+  });
 };
 
 export const trainerLabel = (email) => {
@@ -348,7 +389,7 @@ export const STORAGE_KEYS = {
   TRAINING_SPREADSHEET_ID: 'crm_training_spreadsheet_id',
   CALENDAR_ID: 'crm_calendar_id',
   DEMO_MODE: 'crm_demo_mode',
-  MOCK_DB: 'crm_mock_db_v6',
+  MOCK_DB: 'crm_mock_db_v7',
   DIRECTORY: 'crm_directory_user',
 };
 
