@@ -4,8 +4,35 @@ export const ROLES = {
 };
 
 export const ROLE_LABELS = {
-  [ROLES.SALES]: 'Sales Executive',
-  [ROLES.TRAINING]: 'Technical / Training Member',
+  [ROLES.SALES]: 'Sales',
+  [ROLES.TRAINING]: 'Technical support',
+};
+
+export const USER_TYPES = ['Sales', 'Technical support'];
+export const USER_ROLES = ['Team member', 'Team lead', 'Admin'];
+
+export const normalizeUserType = (value) => {
+  const text = String(value || '').trim().toLowerCase();
+  if (text.includes('technical') || text.includes('training') || text.includes('support')) return 'Technical support';
+  if (text.includes('sales')) return 'Sales';
+  return '';
+};
+
+export const normalizeUserRole = (value) => {
+  const text = String(value || '').trim().toLowerCase();
+  if (text.includes('admin')) return 'Admin';
+  if (text.includes('lead')) return 'Team lead';
+  if (text.includes('member')) return 'Team member';
+  return 'Team member';
+};
+
+export const userTypeToAppRole = (value) =>
+  normalizeUserType(value) === 'Technical support' ? ROLES.TRAINING : ROLES.SALES;
+
+export const isAdminRole = (value) => normalizeUserRole(value) === 'Admin';
+export const isLeadRole = (value) => {
+  const role = normalizeUserRole(value);
+  return role === 'Admin' || role === 'Team lead';
 };
 
 export const SYSTEM_SHEETS = {
@@ -13,6 +40,7 @@ export const SYSTEM_SHEETS = {
   AUDIT: 'Audit Log',
   ANALYTICS: 'CRM Analytics',
   INTERACTIONS: 'Interaction History',
+  USERS: 'Users',
 };
 
 export const SHEETS = {
@@ -57,6 +85,8 @@ export const AUDIT_HEADERS = ['Timestamp', 'User Email', 'Action Taken', 'Client
 
 export const SETTINGS_HEADERS = ['Active CRM Sheets'];
 
+export const USER_HEADERS = ['Username', 'Email', 'User Type', 'User Role'];
+
 export const HEADERS = {
   [SHEETS.SETTINGS]: SETTINGS_HEADERS,
   [SHEETS.AUDIT]: AUDIT_HEADERS,
@@ -93,6 +123,7 @@ export const HEADERS = {
     'Leave_Reason',
     'Rescheduled_Sessions',
   ],
+  [SHEETS.USERS]: USER_HEADERS,
 };
 
 export const PIPELINE_STATUSES = [
@@ -314,7 +345,8 @@ export const STORAGE_KEYS = {
   SPREADSHEET_ID: 'crm_spreadsheet_id',
   CALENDAR_ID: 'crm_calendar_id',
   DEMO_MODE: 'crm_demo_mode',
-  MOCK_DB: 'crm_mock_db_v5',
+  MOCK_DB: 'crm_mock_db_v6',
+  DIRECTORY: 'crm_directory_user',
 };
 
 export const createId = (prefix) =>

@@ -11,9 +11,10 @@ import ClientList from './components/training/ClientList';
 import TrainingCalendar from './components/training/TrainingCalendar';
 import SessionList from './components/training/SessionList';
 import WorkLogForm from './components/worklog/WorkLogForm';
+import UsersPanel from './components/admin/UsersPanel';
 
 export default function App() {
-  const { isAuthenticated, booting, role, error } = useAuth();
+  const { isAuthenticated, booting, role, isAdmin, error } = useAuth();
   const { refreshAll, error: dataError, loading } = useCrmStore();
   const [tab, setTab] = useState('main');
 
@@ -52,7 +53,10 @@ export default function App() {
     { id: 'worklog', label: 'Work log / Leave' },
     { id: 'messages', label: 'Interaction History' },
   ];
-  const tabs = role === ROLES.SALES ? salesTabs : trainingTabs;
+  const tabs = [
+    ...(role === ROLES.SALES ? salesTabs : trainingTabs),
+    ...(isAdmin ? [{ id: 'users', label: 'Users' }] : []),
+  ];
 
   return (
     <div className="min-h-screen">
@@ -88,6 +92,7 @@ export default function App() {
         ) : null}
         {role === ROLES.TRAINING && tab === 'worklog' ? <WorkLogForm /> : null}
         {tab === 'messages' ? <CommunicationPanel /> : null}
+        {isAdmin && tab === 'users' ? <UsersPanel /> : null}
       </main>
     </div>
   );

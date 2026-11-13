@@ -28,6 +28,7 @@ On first login the app creates these tabs if they are missing:
 - `Training_Sessions`
 - `Communication_Escalations`
 - `Daily_Worklogs_Leaves`
+- `Users` — Google login name/email, User Type (Sales / Technical support), User Role (Team member / Team lead / Admin)
 
 ## Run locally
 

@@ -10,7 +10,8 @@ export default function GoogleLoginButton() {
       <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6">
         <h1 className="text-xl font-semibold">Sheets CRM</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Sign in with Google to read and write the CRM spreadsheet and manage calendar sessions.
+          Sign in with Google. Your name and email are stored in the Users sheet, which also sets Sales or Technical
+          support and your role.
         </p>
         {error ? <p className="mt-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
         <button

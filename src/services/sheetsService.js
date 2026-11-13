@@ -25,6 +25,7 @@ const SYSTEM_TITLES = new Set([
   SHEETS.CLIENTS,
   SHEETS.SESSIONS,
   SHEETS.LOGS,
+  SHEETS.USERS,
 ]);
 
 const a1 = (sheet, range) => {
@@ -218,6 +219,7 @@ export const ensureWorkbook = async () => {
     [SHEETS.AUDIT, HEADERS[SHEETS.AUDIT]],
     [SHEETS.CLIENTS, HEADERS[SHEETS.CLIENTS]],
     [SHEETS.SESSIONS, HEADERS[SHEETS.SESSIONS]],
+    [SHEETS.USERS, HEADERS[SHEETS.USERS]],
   ];
 
   const existingRequired = required.filter(([title]) => existing.has(title));
@@ -277,6 +279,7 @@ export const loadCrmSnapshot = async () => {
       sessions: await mock.mockGetObjects(SHEETS.SESSIONS),
       messages: await mock.mockGetObjects(SHEETS.INTERACTIONS),
       worklogs: await mock.mockGetObjects(SHEETS.LOGS),
+      users: await mock.mockGetObjects(SHEETS.USERS),
     };
   }
 
@@ -284,7 +287,9 @@ export const loadCrmSnapshot = async () => {
   const titles = sheetTitles(spreadsheet);
   const titleSet = new Set(titles);
   const leadCandidates = titles.filter((title) => !SYSTEM_TITLES.has(title) || title === SHEETS.NO_RESPONSE);
-  const extras = [SHEETS.CLIENTS, SHEETS.SESSIONS, SHEETS.INTERACTIONS, SHEETS.LOGS].filter((title) => titleSet.has(title));
+  const extras = [SHEETS.CLIENTS, SHEETS.SESSIONS, SHEETS.INTERACTIONS, SHEETS.LOGS, SHEETS.USERS].filter((title) =>
+    titleSet.has(title)
+  );
   const ranges = [
     titleSet.has(SHEETS.SETTINGS) ? a1(SHEETS.SETTINGS, 'A:A') : null,
     ...leadCandidates.map((title) => a1(title, 'A:Q')),
@@ -318,6 +323,7 @@ export const loadCrmSnapshot = async () => {
     sessions: objects(SHEETS.SESSIONS),
     messages: rowsToObjects(extraValues[SHEETS.INTERACTIONS] || [], INTERACTION_HEADERS),
     worklogs: objects(SHEETS.LOGS),
+    users: objects(SHEETS.USERS),
   };
 };
 
@@ -378,6 +384,69 @@ const updateObjectById = async (sheetName, idHeader, id, patch) => {
   const rowNumber = objects[index]._row;
   const lastCol = String.fromCharCode(64 + headers.length);
   await updateValues(a1(sheetName, `A${rowNumber}:${lastCol}${rowNumber}`), [objectToRow(next, headers)]);
+  return next;
+};
+
+const sameEmail = (left, right) => String(left || '').trim().toLowerCase() === String(right || '').trim().toLowerCase();
+
+const toDirectoryUser = (row = {}) => ({
+  ...row,
+  Username: String(row.Username || '').trim(),
+  Email: String(row.Email || '').trim().toLowerCase(),
+  'User Type': String(row['User Type'] || '').trim(),
+  'User Role': String(row['User Role'] || '').trim(),
+});
+
+export const getUsers = async () => (await getObjectsSafe(SHEETS.USERS)).map(toDirectoryUser);
+
+export const upsertDirectoryUser = async ({ name, email }) => {
+  const username = String(name || '').trim() || String(email || '').split('@')[0];
+  const address = String(email || '').trim().toLowerCase();
+  if (!address) throw new Error('A Google email is required to record this user.');
+
+  const users = await getUsers();
+  const existing = users.find((row) => sameEmail(row.Email, address));
+  if (existing) {
+    const next = {
+      ...existing,
+      Username: username || existing.Username,
+      Email: address,
+      'User Type': existing['User Type'] || 'Sales',
+      'User Role': existing['User Role'] || (users.length === 1 ? 'Admin' : 'Team member'),
+    };
+    if (
+      next.Username !== existing.Username ||
+      next['User Type'] !== existing['User Type'] ||
+      next['User Role'] !== existing['User Role']
+    ) {
+      return toDirectoryUser(await updateDirectoryUser(address, next));
+    }
+    return toDirectoryUser(next);
+  }
+
+  const payload = {
+    Username: username,
+    Email: address,
+    'User Type': users.length === 0 ? 'Sales' : 'Sales',
+    'User Role': users.length === 0 ? 'Admin' : 'Team member',
+  };
+  await appendObject(SHEETS.USERS, payload);
+  return toDirectoryUser(payload);
+};
+
+export const updateDirectoryUser = async (email, patch) => {
+  const address = String(email || '').trim().toLowerCase();
+  const users = await getUsers();
+  const existing = users.find((row) => sameEmail(row.Email, address));
+  if (!existing) throw new Error(`User ${address} was not found in the Users sheet.`);
+  const next = toDirectoryUser({ ...existing, ...patch, Email: address });
+  if (isDemoMode()) {
+    return mock.mockUpdateById(SHEETS.USERS, 'Email', existing.Email, next);
+  }
+  const lastCol = String.fromCharCode(64 + HEADERS[SHEETS.USERS].length);
+  await updateValues(a1(SHEETS.USERS, `A${existing._row}:${lastCol}${existing._row}`), [
+    objectToRow(next, HEADERS[SHEETS.USERS]),
+  ]);
   return next;
 };
 

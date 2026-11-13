@@ -7,8 +7,19 @@ import {
   isDemoMode,
   setAccessToken,
 } from '../services/googleApi';
-import { ensureWorkbook } from '../services/sheetsService';
-import { ROLE_LABELS, ROLES, SCOPES, STORAGE_KEYS } from '../utils/constants';
+import { ensureWorkbook, upsertDirectoryUser } from '../services/sheetsService';
+import { useCrmStore } from '../store/crmStore';
+import {
+  ROLE_LABELS,
+  ROLES,
+  SCOPES,
+  STORAGE_KEYS,
+  isAdminRole,
+  isLeadRole,
+  normalizeUserRole,
+  normalizeUserType,
+  userTypeToAppRole,
+} from '../utils/constants';
 import { initPushNotifications } from '../services/pushNotifications';
 
 const AuthContext = createContext(null);
@@ -21,18 +32,57 @@ const readStoredUser = () => {
   }
 };
 
+const readStoredDirectory = () => {
+  try {
+    return JSON.parse(sessionStorage.getItem(STORAGE_KEYS.DIRECTORY) || 'null');
+  } catch {
+    return null;
+  }
+};
+
+const fromSheetRow = (row) => ({
+  username: String(row?.Username || '').trim(),
+  email: String(row?.Email || '').trim().toLowerCase(),
+  userType: normalizeUserType(row?.['User Type']) || 'Sales',
+  userRole: normalizeUserRole(row?.['User Role']),
+});
+
 export function AuthProvider({ children }) {
+  const storedDirectory = readStoredDirectory();
   const [user, setUser] = useState(readStoredUser);
-  const [role, setRole] = useState(localStorage.getItem(STORAGE_KEYS.ROLE) || ROLES.SALES);
+  const [directory, setDirectory] = useState(storedDirectory);
+  const [role, setRole] = useState(
+    storedDirectory ? userTypeToAppRole(storedDirectory.userType) : localStorage.getItem(STORAGE_KEYS.ROLE) || ROLES.SALES
+  );
   const [booting, setBooting] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const users = useCrmStore((state) => state.users);
+
+  const applyDirectory = (row) => {
+    const next = fromSheetRow(row);
+    const appRole = userTypeToAppRole(next.userType);
+    setDirectory(next);
+    setRole(appRole);
+    sessionStorage.setItem(STORAGE_KEYS.DIRECTORY, JSON.stringify(next));
+    localStorage.setItem(STORAGE_KEYS.ROLE, appRole);
+    return next;
+  };
+
+  const resolveDirectory = async (profile) => {
+    const row = await upsertDirectoryUser({
+      name: profile?.name || profile?.Username,
+      email: profile?.email,
+    });
+    return applyDirectory(row);
+  };
 
   useEffect(() => {
     const boot = async () => {
       try {
         if (isDemoMode() && user) {
           await ensureWorkbook();
+          await resolveDirectory(user);
           return;
         }
         const token = sessionStorage.getItem(STORAGE_KEYS.TOKEN);
@@ -41,10 +91,13 @@ export function AuthProvider({ children }) {
           setAccessToken(token);
           await initGapi();
           await ensureWorkbook();
+          if (user) await resolveDirectory(user);
         } else if (token) {
           setAccessToken('');
           sessionStorage.removeItem(STORAGE_KEYS.USER);
+          sessionStorage.removeItem(STORAGE_KEYS.DIRECTORY);
           setUser(null);
+          setDirectory(null);
         }
       } catch (err) {
         setError(err.message);
@@ -61,6 +114,18 @@ export function AuthProvider({ children }) {
     return undefined;
   }, [user]);
 
+  useEffect(() => {
+    if (!user?.email || !users?.length) return;
+    const row = users.find((item) => String(item.Email || '').toLowerCase() === String(user.email).toLowerCase());
+    if (!row) return;
+    const nextType = normalizeUserType(row['User Type']) || 'Sales';
+    const nextRole = normalizeUserRole(row['User Role']);
+    if (directory?.userType === nextType && directory?.userRole === nextRole && directory?.username === String(row.Username || '').trim()) {
+      return;
+    }
+    applyDirectory(row);
+  }, [users, user?.email]);
+
   const persistUser = (profile, token, expiresIn = 3600) => {
     setUser(profile);
     sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(profile));
@@ -74,6 +139,7 @@ export function AuthProvider({ children }) {
     persistUser(profile, token, expiresIn);
     await initGapi();
     await ensureWorkbook();
+    await resolveDirectory(profile);
   };
 
   const googleLogin = useGoogleLogin({
@@ -120,11 +186,14 @@ export function AuthProvider({ children }) {
 
   const logout = () => {
     setUser(null);
+    setDirectory(null);
     setAccessToken('');
     sessionStorage.removeItem(STORAGE_KEYS.USER);
+    sessionStorage.removeItem(STORAGE_KEYS.DIRECTORY);
   };
 
   const switchRole = (nextRole) => {
+    if (!isAdminRole(directory?.userRole)) return;
     setRole(nextRole);
     localStorage.setItem(STORAGE_KEYS.ROLE, nextRole);
   };
@@ -132,8 +201,13 @@ export function AuthProvider({ children }) {
   const value = useMemo(
     () => ({
       user,
+      directory,
       role,
       roleLabel: ROLE_LABELS[role],
+      userType: directory?.userType || ROLE_LABELS[role],
+      userRole: directory?.userRole || 'Team member',
+      isAdmin: isAdminRole(directory?.userRole),
+      isTeamLead: isLeadRole(directory?.userRole),
       isAuthenticated: Boolean(user),
       booting,
       busy,
@@ -142,8 +216,9 @@ export function AuthProvider({ children }) {
       login,
       logout,
       switchRole,
+      applyDirectory,
     }),
-    [user, role, booting, busy, error]
+    [user, directory, role, booting, busy, error]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

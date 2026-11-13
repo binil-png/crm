@@ -22,6 +22,7 @@ const emptyDb = () => ({
   [SHEETS.CLIENTS]: [HEADERS[SHEETS.CLIENTS]],
   [SHEETS.SESSIONS]: [HEADERS[SHEETS.SESSIONS]],
   [SHEETS.LOGS]: [HEADERS[SHEETS.LOGS]],
+  [SHEETS.USERS]: [HEADERS[SHEETS.USERS]],
 });
 
 const leadRow = (sheet, values) => {
@@ -243,6 +244,27 @@ const seedDb = () => {
       ),
     ],
     [SHEETS.LOGS]: [HEADERS[SHEETS.LOGS]],
+    [SHEETS.USERS]: [
+      HEADERS[SHEETS.USERS],
+      objectToRow(
+        {
+          Username: 'Demo User',
+          Email: 'demo@example.com',
+          'User Type': 'Sales',
+          'User Role': 'Admin',
+        },
+        HEADERS[SHEETS.USERS]
+      ),
+      objectToRow(
+        {
+          Username: 'Anjali Kumar',
+          Email: 'anjali.training@example.com',
+          'User Type': 'Technical support',
+          'User Role': 'Team member',
+        },
+        HEADERS[SHEETS.USERS]
+      ),
+    ],
   };
 };
 
@@ -277,6 +299,7 @@ export const mockEnsureWorkbook = async () => {
   if (!db.ANWAR) Object.assign(db, seedDb());
   db[SHEETS.CLIENTS] = db[SHEETS.CLIENTS] || [HEADERS[SHEETS.CLIENTS]];
   db[SHEETS.SESSIONS] = db[SHEETS.SESSIONS] || [HEADERS[SHEETS.SESSIONS]];
+  db[SHEETS.USERS] = db[SHEETS.USERS] || [HEADERS[SHEETS.USERS]];
   writeDb(db);
   return true;
 };

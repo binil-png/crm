@@ -16,7 +16,7 @@ const formatSynced = (at, now) => {
 };
 
 export default function Navbar() {
-  const { user, role, switchRole, logout } = useAuth();
+  const { user, role, userType, userRole, isAdmin, switchRole, logout } = useAuth();
   const { refreshAll, loading, syncing, lastSyncedAt } = useCrmStore();
   const now = useNow(10000);
 
@@ -29,17 +29,23 @@ export default function Navbar() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex rounded border border-slate-200 p-1 text-xs">
-            {Object.values(ROLES).map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => switchRole(value)}
-                className={`rounded px-2 py-1 ${role === value ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
-              >
-                {ROLE_LABELS[value]}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="rounded bg-slate-100 px-2 py-1 font-medium text-slate-700">{userType}</span>
+            <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">{userRole}</span>
+            {isAdmin ? (
+              <div className="flex rounded border border-slate-200 p-1">
+                {Object.values(ROLES).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => switchRole(value)}
+                    className={`rounded px-2 py-1 ${role === value ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
+                  >
+                    {ROLE_LABELS[value]}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="flex items-center gap-2">

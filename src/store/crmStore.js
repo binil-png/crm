@@ -27,6 +27,7 @@ export const useCrmStore = create((set, get) => ({
   sessions: [],
   messages: [],
   worklogs: [],
+  users: [],
   loading: false,
   syncing: false,
   lastSyncedAt: 0,
@@ -62,6 +63,7 @@ export const useCrmStore = create((set, get) => ({
           sessions: snapshot.sessions,
           messages: snapshot.messages,
           worklogs: snapshot.worklogs,
+          users: snapshot.users || [],
           loading: false,
           syncing: false,
           lastSyncedAt: Date.now(),
@@ -379,5 +381,13 @@ export const useCrmStore = create((set, get) => ({
 
     set({ sessions });
     return log;
+  },
+
+  updateDirectoryUser: async (email, patch) => {
+    const next = await sheets.updateDirectoryUser(email, patch);
+    set({
+      users: get().users.map((row) => (String(row.Email || '').toLowerCase() === String(email || '').toLowerCase() ? next : row)),
+    });
+    return next;
   },
 }));
