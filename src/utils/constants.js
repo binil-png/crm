@@ -290,6 +290,7 @@ export const ENTRY_TYPES = {
 
 export const SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets',
+  'https://www.googleapis.com/auth/drive.metadata.readonly',
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/userinfo.email',
   'https://www.googleapis.com/auth/userinfo.profile',
@@ -301,6 +302,7 @@ export const DISCOVERY_DOCS = [
 ];
 
 export const POLL_INTERVAL_MS = 20000;
+export const POLL_MAX_BACKOFF_MS = 5 * 60 * 1000;
 
 export const STORAGE_KEYS = {
   TOKEN: 'crm_access_token',

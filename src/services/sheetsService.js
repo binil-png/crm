@@ -38,27 +38,72 @@ const sheetUrl = (path = '') => {
   return `https://sheets.googleapis.com/v4/spreadsheets/${id}${path}`;
 };
 
+const METADATA_TTL_MS = 5 * 60 * 1000;
+let spreadsheetCache = { data: null, at: 0 };
+
+export const sheetsErrorMessage = (error) =>
+  error?.result?.error?.message || error?.message || 'Google Sheets request failed.';
+
+export const isSheetsQuotaError = (error) => {
+  const text = sheetsErrorMessage(error);
+  const code = error?.status || error?.result?.error?.code;
+  return code === 429 || /quota exceeded|rate limit exceeded/i.test(text);
+};
+
+const gapiCall = async (fn) => {
+  try {
+    return await fn();
+  } catch (error) {
+    throw new Error(sheetsErrorMessage(error));
+  }
+};
+
+const invalidateSpreadsheetCache = () => {
+  spreadsheetCache = { data: null, at: 0 };
+};
+
 const getValues = async (range) => {
   if (isGapiReady()) {
-    const response = await window.gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId: getSpreadsheetId(),
-      range,
-    });
+    const response = await gapiCall(() =>
+      window.gapi.client.sheets.spreadsheets.values.get({
+        spreadsheetId: getSpreadsheetId(),
+        range,
+      })
+    );
     return response.result.values || [];
   }
   const data = await googleFetch(`${sheetUrl()}/values/${encodeURIComponent(range)}`);
   return data.values || [];
 };
 
+const batchGetValues = async (ranges) => {
+  const list = ranges.filter(Boolean);
+  if (!list.length) return [];
+  if (isGapiReady()) {
+    const response = await gapiCall(() =>
+      window.gapi.client.sheets.spreadsheets.values.batchGet({
+        spreadsheetId: getSpreadsheetId(),
+        ranges: list,
+      })
+    );
+    return (response.result.valueRanges || []).map((item) => item.values || []);
+  }
+  const query = list.map((range) => `ranges=${encodeURIComponent(range)}`).join('&');
+  const data = await googleFetch(`${sheetUrl()}/values:batchGet?${query}`);
+  return (data.valueRanges || []).map((item) => item.values || []);
+};
+
 const appendValues = async (range, values) => {
   if (isGapiReady()) {
-    await window.gapi.client.sheets.spreadsheets.values.append({
-      spreadsheetId: getSpreadsheetId(),
-      range,
-      valueInputOption: 'USER_ENTERED',
-      insertDataOption: 'INSERT_ROWS',
-      resource: { values },
-    });
+    await gapiCall(() =>
+      window.gapi.client.sheets.spreadsheets.values.append({
+        spreadsheetId: getSpreadsheetId(),
+        range,
+        valueInputOption: 'USER_ENTERED',
+        insertDataOption: 'INSERT_ROWS',
+        resource: { values },
+      })
+    );
     return;
   }
   await googleFetch(
@@ -69,12 +114,14 @@ const appendValues = async (range, values) => {
 
 const updateValues = async (range, values) => {
   if (isGapiReady()) {
-    await window.gapi.client.sheets.spreadsheets.values.update({
-      spreadsheetId: getSpreadsheetId(),
-      range,
-      valueInputOption: 'USER_ENTERED',
-      resource: { values },
-    });
+    await gapiCall(() =>
+      window.gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: getSpreadsheetId(),
+        range,
+        valueInputOption: 'USER_ENTERED',
+        resource: { values },
+      })
+    );
     return;
   }
   await googleFetch(
@@ -83,22 +130,34 @@ const updateValues = async (range, values) => {
   );
 };
 
-const getSpreadsheet = async () => {
-  if (isGapiReady()) {
-    const response = await window.gapi.client.sheets.spreadsheets.get({
-      spreadsheetId: getSpreadsheetId(),
-    });
-    return response.result;
+const getSpreadsheet = async ({ force = false } = {}) => {
+  if (!force && spreadsheetCache.data && Date.now() - spreadsheetCache.at < METADATA_TTL_MS) {
+    return spreadsheetCache.data;
   }
-  return googleFetch(sheetUrl());
+  const data = isGapiReady()
+    ? (
+        await gapiCall(() =>
+          window.gapi.client.sheets.spreadsheets.get({
+            spreadsheetId: getSpreadsheetId(),
+          })
+        )
+      ).result
+    : await googleFetch(sheetUrl());
+  spreadsheetCache = { data, at: Date.now() };
+  return data;
 };
 
+const sheetTitles = (spreadsheet) => (spreadsheet.sheets || []).map((sheet) => sheet.properties.title);
+
 const batchUpdate = async (requests) => {
+  invalidateSpreadsheetCache();
   if (isGapiReady()) {
-    await window.gapi.client.sheets.spreadsheets.batchUpdate({
-      spreadsheetId: getSpreadsheetId(),
-      resource: { requests },
-    });
+    await gapiCall(() =>
+      window.gapi.client.sheets.spreadsheets.batchUpdate({
+        spreadsheetId: getSpreadsheetId(),
+        resource: { requests },
+      })
+    );
     return;
   }
   await googleFetch(`${sheetUrl()}:batchUpdate`, {
@@ -107,14 +166,14 @@ const batchUpdate = async (requests) => {
   });
 };
 
-const ensureSheetWithHeaders = async (existing, title, headers) => {
+const ensureSheetWithHeaders = async (existing, title, headers, firstRow) => {
   if (!existing.has(title)) {
     await batchUpdate([{ addSheet: { properties: { title, gridProperties: { frozenRowCount: 1 } } } }]);
     existing.add(title);
     await updateValues(a1(title, 'A1'), [headers]);
     return;
   }
-  const first = (await getValues(a1(title, '1:1')))[0] || [];
+  const first = firstRow || (await getValues(a1(title, '1:1')))[0] || [];
   const present = new Set(first.map((cell) => String(cell || '').trim()).filter(Boolean));
   const missing = headers.filter((header) => !present.has(header));
   if (!first.some((cell) => String(cell || '').trim())) {
@@ -127,17 +186,48 @@ const ensureSheetWithHeaders = async (existing, title, headers) => {
   }
 };
 
+const classifyLeadSheets = (titles, settingsRows, headerByTitle) => {
+  const configured = (settingsRows || [])
+    .slice(1)
+    .map((row) => String(row[0] || '').trim())
+    .filter(Boolean);
+
+  const names = new Set();
+  configured.forEach((name) => {
+    if (titles.has(name) && !SYSTEM_TITLES.has(name)) names.add(name);
+  });
+
+  for (const title of titles) {
+    if (SYSTEM_TITLES.has(title) && title !== SHEETS.NO_RESPONSE) continue;
+    if (names.has(title)) continue;
+    const first = headerByTitle.get(title) || [];
+    if (isLeadHeaderRow(first) || title === SHEETS.NO_RESPONSE) names.add(title);
+  }
+
+  return [...names];
+};
+
 export const ensureWorkbook = async () => {
   if (isDemoMode()) return mock.mockEnsureWorkbook();
 
-  const spreadsheet = await getSpreadsheet();
-  const existing = new Set((spreadsheet.sheets || []).map((sheet) => sheet.properties.title));
+  const spreadsheet = await getSpreadsheet({ force: true });
+  const existing = new Set(sheetTitles(spreadsheet));
+  const required = [
+    [SHEETS.SETTINGS, HEADERS[SHEETS.SETTINGS]],
+    [SHEETS.INTERACTIONS, INTERACTION_HEADERS],
+    [SHEETS.AUDIT, HEADERS[SHEETS.AUDIT]],
+    [SHEETS.CLIENTS, HEADERS[SHEETS.CLIENTS]],
+    [SHEETS.SESSIONS, HEADERS[SHEETS.SESSIONS]],
+  ];
 
-  await ensureSheetWithHeaders(existing, SHEETS.SETTINGS, HEADERS[SHEETS.SETTINGS]);
-  await ensureSheetWithHeaders(existing, SHEETS.INTERACTIONS, INTERACTION_HEADERS);
-  await ensureSheetWithHeaders(existing, SHEETS.AUDIT, HEADERS[SHEETS.AUDIT]);
-  await ensureSheetWithHeaders(existing, SHEETS.CLIENTS, HEADERS[SHEETS.CLIENTS]);
-  await ensureSheetWithHeaders(existing, SHEETS.SESSIONS, HEADERS[SHEETS.SESSIONS]);
+  const existingRequired = required.filter(([title]) => existing.has(title));
+  const headerRows = await batchGetValues(existingRequired.map(([title]) => a1(title, '1:1')));
+  for (let index = 0; index < required.length; index += 1) {
+    const [title, headers] = required[index];
+    const existingIndex = existingRequired.findIndex((item) => item[0] === title);
+    const first = existingIndex >= 0 ? headerRows[existingIndex]?.[0] || [] : undefined;
+    await ensureSheetWithHeaders(existing, title, headers, first);
+  }
 
   const leadSheets = await listLeadSheetNames(existing);
   if (!leadSheets.length) {
@@ -152,26 +242,16 @@ export const ensureWorkbook = async () => {
 };
 
 const listLeadSheetNames = async (existingTitles) => {
-  const titles = existingTitles || new Set(((await getSpreadsheet()).sheets || []).map((sheet) => sheet.properties.title));
-  const settingsRows = await getValues(a1(SHEETS.SETTINGS, 'A:A')).catch(() => []);
-  const configured = settingsRows
-    .slice(1)
-    .map((row) => String(row[0] || '').trim())
-    .filter(Boolean);
-
-  const names = new Set();
-  configured.forEach((name) => {
-    if (titles.has(name) && !SYSTEM_TITLES.has(name)) names.add(name);
-  });
-
-  for (const title of titles) {
-    if (SYSTEM_TITLES.has(title)) continue;
-    if (names.has(title)) continue;
-    const first = (await getValues(a1(title, '1:1')))[0] || [];
-    if (isLeadHeaderRow(first) || title === SHEETS.NO_RESPONSE) names.add(title);
-  }
-
-  return [...names];
+  const titles = existingTitles || new Set(sheetTitles(await getSpreadsheet()));
+  const candidates = [...titles].filter((title) => !SYSTEM_TITLES.has(title) || title === SHEETS.NO_RESPONSE);
+  const ranges = [titles.has(SHEETS.SETTINGS) ? a1(SHEETS.SETTINGS, 'A:A') : null, ...candidates.map((title) => a1(title, '1:1'))].filter(
+    Boolean
+  );
+  const rows = ranges.length ? await batchGetValues(ranges) : [];
+  let offset = 0;
+  const settingsRows = titles.has(SHEETS.SETTINGS) ? rows[offset++] || [] : [];
+  const headerByTitle = new Map(candidates.map((title, index) => [title, rows[offset + index]?.[0] || []]));
+  return classifyLeadSheets(titles, settingsRows, headerByTitle);
 };
 
 const leadObjectsFromSheet = async (sheetName) => {
@@ -188,11 +268,63 @@ export const getLeadSheets = async () => {
   return listLeadSheetNames();
 };
 
+export const loadCrmSnapshot = async () => {
+  if (isDemoMode()) {
+    return {
+      leads: await mock.mockGetLeads(),
+      leadSheets: await mock.mockGetLeadSheets(),
+      clients: await mock.mockGetObjects(SHEETS.CLIENTS),
+      sessions: await mock.mockGetObjects(SHEETS.SESSIONS),
+      messages: await mock.mockGetObjects(SHEETS.INTERACTIONS),
+      worklogs: await mock.mockGetObjects(SHEETS.LOGS),
+    };
+  }
+
+  const spreadsheet = await getSpreadsheet();
+  const titles = sheetTitles(spreadsheet);
+  const titleSet = new Set(titles);
+  const leadCandidates = titles.filter((title) => !SYSTEM_TITLES.has(title) || title === SHEETS.NO_RESPONSE);
+  const extras = [SHEETS.CLIENTS, SHEETS.SESSIONS, SHEETS.INTERACTIONS, SHEETS.LOGS].filter((title) => titleSet.has(title));
+  const ranges = [
+    titleSet.has(SHEETS.SETTINGS) ? a1(SHEETS.SETTINGS, 'A:A') : null,
+    ...leadCandidates.map((title) => a1(title, 'A:Q')),
+    ...extras.map((title) => a1(title, 'A:Z')),
+  ].filter(Boolean);
+
+  const rows = ranges.length ? await batchGetValues(ranges) : [];
+  let offset = 0;
+  const settingsRows = titleSet.has(SHEETS.SETTINGS) ? rows[offset++] || [] : [];
+  const leadValueGroups = leadCandidates.map(() => rows[offset++] || []);
+  const extraValues = Object.fromEntries(extras.map((title) => [title, rows[offset++] || []]));
+
+  const headerByTitle = new Map(leadCandidates.map((title, index) => [title, leadValueGroups[index]?.[0] || []]));
+  const leadSheets = classifyLeadSheets(titleSet, settingsRows, headerByTitle);
+  const leads = leadSheets.flatMap((name) => {
+    const index = leadCandidates.indexOf(name);
+    const values = index >= 0 ? leadValueGroups[index] || [] : [];
+    return rowsToObjects(values, LEAD_HEADERS).map((lead) => ({
+      ...lead,
+      Status: normalizeStatus(lead.Status),
+      _sheet: name,
+    }));
+  });
+
+  const objects = (title) => rowsToObjects(extraValues[title] || [], HEADERS[title] || []);
+
+  return {
+    leads,
+    leadSheets,
+    clients: objects(SHEETS.CLIENTS),
+    sessions: objects(SHEETS.SESSIONS),
+    messages: rowsToObjects(extraValues[SHEETS.INTERACTIONS] || [], INTERACTION_HEADERS),
+    worklogs: objects(SHEETS.LOGS),
+  };
+};
+
 export const getLeads = async () => {
   if (isDemoMode()) return mock.mockGetLeads();
-  const sheets = await listLeadSheetNames();
-  const groups = await Promise.all(sheets.map((name) => leadObjectsFromSheet(name)));
-  return groups.flat();
+  const snapshot = await loadCrmSnapshot();
+  return snapshot.leads;
 };
 
 export const addLead = async (lead) => {

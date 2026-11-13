@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import * as sheets from '../services/sheetsService';
 import { createCalendarEvent, patchCalendarEvent } from '../services/calendarService';
+import { getSpreadsheetStamp } from '../services/driveService';
 import { cancelTimedPush, currentUserEmail, scheduleTimedPush } from '../services/pushNotifications';
 import {
   appendStageComment,
@@ -29,44 +30,51 @@ export const useCrmStore = create((set, get) => ({
   loading: false,
   syncing: false,
   lastSyncedAt: 0,
+  remoteStamp: '',
   error: '',
 
   setError: (error) => set({ error }),
 
-  refreshAll: async ({ silent = false } = {}) => {
+  refreshAll: async ({ silent = false, force = false } = {}) => {
     if (refreshPromise) return refreshPromise;
 
     refreshPromise = (async () => {
       if (silent) set({ syncing: true });
       else set({ loading: true, error: '' });
       try {
-        const [leads, leadSheets, clients, sessions, messages, worklogs] = await Promise.all([
-          sheets.getLeads(),
-          sheets.getLeadSheets(),
-          sheets.getClients(),
-          sheets.getSessions(),
-          sheets.getMessages(),
-          sheets.getWorklogs(),
-        ]);
+        const stamp = await getSpreadsheetStamp();
+        if (
+          silent &&
+          !force &&
+          stamp &&
+          stamp === get().remoteStamp &&
+          (get().leads.length || get().clients.length || get().sessions.length)
+        ) {
+          set({ syncing: false, lastSyncedAt: Date.now() });
+          return;
+        }
+
+        const snapshot = await sheets.loadCrmSnapshot();
         set({
-          leads,
-          leadSheets,
-          clients,
-          sessions,
-          messages,
-          worklogs,
+          leads: snapshot.leads,
+          leadSheets: snapshot.leadSheets,
+          clients: snapshot.clients,
+          sessions: snapshot.sessions,
+          messages: snapshot.messages,
+          worklogs: snapshot.worklogs,
           loading: false,
           syncing: false,
           lastSyncedAt: Date.now(),
-          error: silent ? get().error : '',
+          remoteStamp: stamp || get().remoteStamp,
+          error: '',
         });
       } catch (error) {
-        if (silent) {
-          set({ syncing: false });
-          return;
-        }
-        set({ loading: false, syncing: false, error: error.message || 'Failed to load CRM data.' });
-        throw error;
+        const quota = sheets.isSheetsQuotaError(error);
+        const message = quota
+          ? 'Google Sheets read limit reached. Sync paused and will retry automatically.'
+          : error.message || 'Failed to load CRM data.';
+        set({ loading: false, syncing: false, error: silent && !quota ? get().error : message });
+        if (quota || !silent) throw error;
       }
     })().finally(() => {
       refreshPromise = null;

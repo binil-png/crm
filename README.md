@@ -14,7 +14,8 @@ Serverless React CRM that stores data in Google Sheets and schedules training in
 ## Google Cloud setup
 
 1. Create a Google Cloud project.
-2. Enable **Google Sheets API** and **Google Calendar API**.
+2. Enable **Google Sheets API**, **Google Calendar API**, and **Google Drive API**.
+   Drive is used only to read the spreadsheet’s `modifiedTime`, so background sync does not burn Sheets read quota. There is no Sheets webhook to the browser; Drive push notifications would need a public HTTPS server.
 3. Create an OAuth 2.0 Client ID (Web application).
 4. Add `http://localhost:5173` to Authorized JavaScript origins.
 5. Create or copy a Google Spreadsheet and share it with the Google account you will use to sign in.

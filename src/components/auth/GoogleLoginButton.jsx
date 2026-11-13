@@ -23,7 +23,7 @@ export default function GoogleLoginButton() {
           {busy ? 'Connecting…' : isDemoMode() ? 'Enter demo workspace' : 'Continue with Google'}
         </button>
         <p className="mt-4 text-xs text-slate-500">
-          Requested scopes: Google Sheets and Google Calendar events.
+          Requested scopes: Google Sheets, Drive file metadata, and Calendar events.
         </p>
         <button
           type="button"

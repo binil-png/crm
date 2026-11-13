@@ -49,7 +49,7 @@ export default function Navbar() {
             </p>
             <button
               type="button"
-              onClick={() => refreshAll().catch(() => {})}
+              onClick={() => refreshAll({ force: true }).catch(() => {})}
               className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-xs"
             >
               <RefreshCw size={14} className={loading || syncing ? 'animate-spin' : ''} />
