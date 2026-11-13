@@ -51,6 +51,8 @@ export const SHEETS = {
   LOGS: 'Daily_Worklogs_Leaves',
 };
 
+export const TRAINING_WORKBOOK_SHEETS = [SHEETS.CLIENTS, SHEETS.SESSIONS, SHEETS.USERS, SHEETS.LOGS];
+
 export const LEAD_HEADERS = [
   'Sl No',
   'Executive',
@@ -343,6 +345,7 @@ export const STORAGE_KEYS = {
   CLIENT_ID: 'crm_google_client_id',
   API_KEY: 'crm_google_api_key',
   SPREADSHEET_ID: 'crm_spreadsheet_id',
+  TRAINING_SPREADSHEET_ID: 'crm_training_spreadsheet_id',
   CALENDAR_ID: 'crm_calendar_id',
   DEMO_MODE: 'crm_demo_mode',
   MOCK_DB: 'crm_mock_db_v6',

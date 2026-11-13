@@ -9,7 +9,8 @@ import './index.css';
 
 function Root() {
   const [config, setConfig] = useState(getConfig);
-  const needsSetup = !config.demoMode && (!config.clientId || !config.spreadsheetId);
+  const needsSetup =
+    !config.demoMode && (!config.clientId || !config.spreadsheetId || !config.trainingSpreadsheetId);
 
   if (needsSetup) {
     return <SetupScreen onSaved={setConfig} />;

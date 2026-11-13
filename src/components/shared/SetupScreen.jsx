@@ -6,14 +6,15 @@ export default function SetupScreen({ onSaved }) {
   const [clientId, setClientId] = useState(existing.clientId);
   const [apiKey, setApiKey] = useState(existing.apiKey);
   const [spreadsheetId, setSpreadsheetId] = useState(existing.spreadsheetId);
+  const [trainingSpreadsheetId, setTrainingSpreadsheetId] = useState(existing.trainingSpreadsheetId);
   const [calendarId, setCalendarId] = useState(existing.calendarId || 'primary');
 
   const save = (demoMode = false) => {
-    if (!demoMode && (!clientId.trim() || !spreadsheetId.trim())) {
-      window.alert('Google Client ID and Spreadsheet ID are required.');
+    if (!demoMode && (!clientId.trim() || !spreadsheetId.trim() || !trainingSpreadsheetId.trim())) {
+      window.alert('Google Client ID, sales spreadsheet ID, and training spreadsheet ID are required.');
       return;
     }
-    saveConfig({ clientId, apiKey, spreadsheetId, calendarId, demoMode });
+    saveConfig({ clientId, apiKey, spreadsheetId, trainingSpreadsheetId, calendarId, demoMode });
     onSaved(getConfig());
   };
 
@@ -42,13 +43,25 @@ export default function SetupScreen({ onSaved }) {
           placeholder="Used for gapi client init"
         />
 
-        <label className="mt-4 block text-sm font-medium">Spreadsheet ID</label>
+        <label className="mt-4 block text-sm font-medium">Sales spreadsheet ID</label>
         <input
           className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
           value={spreadsheetId}
           onChange={(e) => setSpreadsheetId(e.target.value)}
-          placeholder="From the Google Sheets URL"
+          placeholder="Leads and interaction history"
         />
+
+        <label className="mt-4 block text-sm font-medium">Training spreadsheet ID</label>
+        <input
+          className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+          value={trainingSpreadsheetId}
+          onChange={(e) => setTrainingSpreadsheetId(e.target.value)}
+          placeholder="Training_Clients, Training_Sessions, Users, Daily_Worklogs_Leaves"
+        />
+        <p className="mt-1 text-xs text-slate-500">
+          Use a different Google Sheet for training clients, sessions, users, and work logs / leave. Share it with the
+          same Google accounts.
+        </p>
 
         <label className="mt-4 block text-sm font-medium">Calendar ID</label>
         <input

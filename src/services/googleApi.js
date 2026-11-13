@@ -14,11 +14,13 @@ export const getConfig = () => ({
   clientId: localStorage.getItem(STORAGE_KEYS.CLIENT_ID) || envValue('VITE_GOOGLE_CLIENT_ID'),
   apiKey: localStorage.getItem(STORAGE_KEYS.API_KEY) || envValue('VITE_GOOGLE_API_KEY'),
   spreadsheetId: localStorage.getItem(STORAGE_KEYS.SPREADSHEET_ID) || envValue('VITE_GOOGLE_SPREADSHEET_ID'),
+  trainingSpreadsheetId:
+    localStorage.getItem(STORAGE_KEYS.TRAINING_SPREADSHEET_ID) || envValue('VITE_GOOGLE_TRAINING_SPREADSHEET_ID'),
   calendarId: localStorage.getItem(STORAGE_KEYS.CALENDAR_ID) || envValue('VITE_GOOGLE_CALENDAR_ID', 'primary'),
   demoMode: localStorage.getItem(STORAGE_KEYS.DEMO_MODE) === '1',
 });
 
-export const saveConfig = ({ clientId, apiKey, spreadsheetId, calendarId, demoMode }) => {
+export const saveConfig = ({ clientId, apiKey, spreadsheetId, trainingSpreadsheetId, calendarId, demoMode }) => {
   if (demoMode) {
     localStorage.setItem(STORAGE_KEYS.DEMO_MODE, '1');
     return;
@@ -27,6 +29,7 @@ export const saveConfig = ({ clientId, apiKey, spreadsheetId, calendarId, demoMo
   if (clientId) localStorage.setItem(STORAGE_KEYS.CLIENT_ID, clientId.trim());
   if (apiKey) localStorage.setItem(STORAGE_KEYS.API_KEY, apiKey.trim());
   if (spreadsheetId) localStorage.setItem(STORAGE_KEYS.SPREADSHEET_ID, spreadsheetId.trim());
+  if (trainingSpreadsheetId) localStorage.setItem(STORAGE_KEYS.TRAINING_SPREADSHEET_ID, trainingSpreadsheetId.trim());
   if (calendarId) localStorage.setItem(STORAGE_KEYS.CALENDAR_ID, calendarId.trim());
 };
 
@@ -40,6 +43,8 @@ export const resetConfig = () => {
 export const isDemoMode = () => getConfig().demoMode;
 
 export const getSpreadsheetId = () => getConfig().spreadsheetId;
+
+export const getTrainingSpreadsheetId = () => getConfig().trainingSpreadsheetId;
 
 export const getCalendarId = () => getConfig().calendarId || 'primary';
 
