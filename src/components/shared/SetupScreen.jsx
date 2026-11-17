@@ -24,7 +24,8 @@ export default function SetupScreen({ onSaved }) {
         <h1 className="text-xl font-semibold">Connect Google workspace</h1>
         <p className="mt-2 text-sm text-slate-600">
           Create an OAuth client in Google Cloud, enable Sheets API v4 and Calendar API v3, then paste the IDs below.
-          Share the spreadsheet with the Google account you will use to sign in.
+          For every Google account to use the CRM, share both sheets once with the service account in
+          GOOGLE_SERVICE_ACCOUNT_FILE (Editor), not with each user.
         </p>
 
         <label className="mt-5 block text-sm font-medium">Google OAuth Client ID</label>
@@ -35,7 +36,7 @@ export default function SetupScreen({ onSaved }) {
           placeholder="xxxx.apps.googleusercontent.com"
         />
 
-        <label className="mt-4 block text-sm font-medium">Google API Key (optional)</label>
+        <label className="mt-4 block text-sm font-medium">Google API Key (optional — never paste GOCSPX- client secret)</label>
         <input
           className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
           value={apiKey}

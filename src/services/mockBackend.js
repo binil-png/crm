@@ -254,6 +254,8 @@ const seedDb = () => {
           'User Type': 'Sales',
           'User Role': 'Admin',
           'Calendar ID': 'primary',
+          'Last Login': '',
+          Registered: 'Yes',
         },
         HEADERS[SHEETS.USERS]
       ),
@@ -264,6 +266,8 @@ const seedDb = () => {
           'User Type': 'Technical support',
           'User Role': 'Team member',
           'Calendar ID': 'primary',
+          'Last Login': '',
+          Registered: 'Yes',
         },
         HEADERS[SHEETS.USERS]
       ),
@@ -365,7 +369,9 @@ export const mockUpdateById = async (sheetName, idHeader, id, patch) => {
   const headers = HEADERS[sheetName];
   const col = headers.indexOf(idHeader);
   const rows = db[sheetName] || [headers];
-  const index = rows.findIndex((row, i) => i > 0 && row[col] === id);
+  const index = rows.findIndex(
+    (row, i) => i > 0 && String(row[col] || '').trim().toLowerCase() === String(id || '').trim().toLowerCase()
+  );
   if (index < 0) throw new Error(`${idHeader} ${id} not found in ${sheetName}`);
   const current = rowsToObjects([headers, rows[index]], headers)[0];
   const next = { ...current, ...patch };

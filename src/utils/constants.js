@@ -87,7 +87,13 @@ export const AUDIT_HEADERS = ['Timestamp', 'User Email', 'Action Taken', 'Client
 
 export const SETTINGS_HEADERS = ['Active CRM Sheets'];
 
-export const USER_HEADERS = ['Username', 'Email', 'User Type', 'User Role', 'Calendar ID'];
+export const USER_HEADERS = ['Username', 'Email', 'User Type', 'User Role', 'Calendar ID', 'Last Login', 'Registered'];
+
+export const normalizeRegistered = (value) => {
+  const text = String(value || '').trim().toLowerCase();
+  if (!text) return true;
+  return ['yes', 'y', 'true', '1', 'registered'].includes(text);
+};
 
 export const HEADERS = {
   [SHEETS.SETTINGS]: SETTINGS_HEADERS,
@@ -363,11 +369,12 @@ export const ENTRY_TYPES = {
 };
 
 export const SCOPES = [
+  'openid',
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile',
   'https://www.googleapis.com/auth/spreadsheets',
   'https://www.googleapis.com/auth/drive.metadata.readonly',
   'https://www.googleapis.com/auth/calendar.events',
-  'https://www.googleapis.com/auth/userinfo.email',
-  'https://www.googleapis.com/auth/userinfo.profile',
 ].join(' ');
 
 export const DISCOVERY_DOCS = [

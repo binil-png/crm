@@ -395,6 +395,18 @@ export const useCrmStore = create((set, get) => ({
     return log;
   },
 
+  rememberDirectoryUser: (row) => {
+    const key = String(row?.Email || '').trim().toLowerCase();
+    if (!key) return;
+    const users = get().users;
+    const exists = users.some((item) => String(item.Email || '').trim().toLowerCase() === key);
+    set({
+      users: exists
+        ? users.map((item) => (String(item.Email || '').trim().toLowerCase() === key ? { ...item, ...row } : item))
+        : [...users, row],
+    });
+  },
+
   updateDirectoryUser: async (email, patch) => {
     const next = await sheets.updateDirectoryUser(email, patch);
     set({

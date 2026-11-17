@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
-import { USER_ROLES, USER_TYPES } from '../../utils/constants';
+import { USER_ROLES, USER_TYPES, formatDateTime, normalizeRegistered } from '../../utils/constants';
 
 export default function UsersPanel() {
   const { user, isAdmin, applyDirectory } = useAuth();
@@ -28,9 +28,8 @@ export default function UsersPanel() {
     <section>
       <h2 className="text-lg font-semibold">Users</h2>
       <p className="mb-4 text-sm text-slate-500">
-        Google sign-in writes Username and Email here. User Type chooses Sales or Technical support. User Role is Team
-        member, Team lead, or Admin. Calendar ID is that person’s Google Calendar — use primary, their email, or a
-        shared calendar ID. Training sessions assigned to them are created on that calendar.
+        Google login adds the Gmail name and email here and sets Registered to Yes. User Type, User Role, and Calendar ID
+        can be edited after that.
       </p>
       {error ? <p className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
       {users.length === 0 ? (
@@ -45,6 +44,8 @@ export default function UsersPanel() {
                 <th className="px-3 py-2">User type</th>
                 <th className="px-3 py-2">User role</th>
                 <th className="px-3 py-2">Calendar ID</th>
+                <th className="px-3 py-2">Last login</th>
+                <th className="px-3 py-2">Registered</th>
               </tr>
             </thead>
             <tbody>
@@ -87,6 +88,16 @@ export default function UsersPanel() {
                         if (next !== (row['Calendar ID'] || 'primary')) save(row, { 'Calendar ID': next });
                       }}
                     />
+                  </td>
+                  <td className="px-3 py-2 text-xs text-slate-500">{formatDateTime(row['Last Login'])}</td>
+                  <td className="px-3 py-2">
+                    <span
+                      className={`rounded px-2 py-0.5 text-xs ${
+                        normalizeRegistered(row.Registered) ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {normalizeRegistered(row.Registered) ? 'Yes' : 'No'}
+                    </span>
                   </td>
                 </tr>
               ))}

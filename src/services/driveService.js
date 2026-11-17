@@ -3,6 +3,7 @@ import {
   getSpreadsheetId,
   getTrainingSpreadsheetId,
   googleFetch,
+  isAppSheetsEnabled,
   isDemoMode,
   isGapiReady,
 } from './googleApi';
@@ -14,7 +15,7 @@ const stampFromPayload = (data) => `${data?.modifiedTime || ''}:${data?.version 
 
 const stampForFile = async (fileId) => {
   if (!fileId) return '';
-  if (isGapiReady() && window.gapi?.client?.drive?.files) {
+  if (isGapiReady() && !isAppSheetsEnabled() && window.gapi?.client?.drive?.files) {
     const response = await window.gapi.client.drive.files.get({
       fileId,
       fields: 'modifiedTime,version',

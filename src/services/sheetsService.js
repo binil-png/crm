@@ -8,14 +8,17 @@ import {
   appendStageComment,
   isLeadHeaderRow,
   normalizeStatus,
+  nowIso,
   objectToRow,
   rowsToObjects,
   sameDay,
 } from '../utils/constants';
 import {
+  getAppSheetsStatus,
   getSpreadsheetId,
   getTrainingSpreadsheetId,
   googleFetch,
+  isAppSheetsEnabled,
   isDemoMode,
   isGapiReady,
 } from './googleApi';
@@ -61,6 +64,37 @@ export const isSheetsQuotaError = (error) => {
   return code === 429 || /quota exceeded|rate limit exceeded/i.test(text);
 };
 
+export const isPermissionError = (error) => {
+  const text = sheetsErrorMessage(error);
+  const code = error?.status || error?.result?.error?.code;
+  return code === 403 || /PERMISSION_DENIED|caller does not have permission|insufficient permission|forbidden/i.test(text);
+};
+
+export const isSheetsApiDisabledError = (error) =>
+  /has not been used in project|accessNotConfigured|API has not been enabled|it is disabled/i.test(
+    sheetsErrorMessage(error)
+  );
+
+const shareHelp = (spreadsheetId, label, email = '') => {
+  const url = spreadsheetId ? `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` : '';
+  const app = getAppSheetsStatus();
+  if (app.enabled && app.shareWith) {
+    return `The CRM app cannot edit the ${label} sheet. Open ${url} → Share → add the service account ${app.shareWith} as Editor (once). Signed-in Gmail accounts do not need to be on the sheet.`;
+  }
+  const who = email ? email : 'the Gmail used in Continue with Google';
+  return `Google blocked writes to the ${label} sheet for ${who}. Open ${url} as the sheet owner → Share → add ${who} as Editor (not Viewer) → Send. Or give the CRM app-level access: create a Google service account, put GOOGLE_SERVICE_ACCOUNT_FILE in .env, and share the sheet with that service account as Editor.`;
+};
+
+const describeSheetWriteError = (error, spreadsheetId, label, email) => {
+  if (isSheetsApiDisabledError(error)) {
+    return 'Enable Google Sheets API in Google Cloud Console (APIs & Services → Library → Google Sheets API → Enable) for the OAuth project, wait about a minute, then sign in again.';
+  }
+  if (isPermissionError(error)) return shareHelp(spreadsheetId, label, email);
+  return `${label}: ${sheetsErrorMessage(error)}`;
+};
+
+const useGapiSheets = () => isGapiReady() && !isAppSheetsEnabled();
+
 const gapiCall = async (fn) => {
   try {
     return await fn();
@@ -75,7 +109,7 @@ const invalidateSpreadsheetCache = (spreadsheetId) => {
 };
 
 const getValues = async (range, spreadsheetId = salesId()) => {
-  if (isGapiReady()) {
+  if (useGapiSheets()) {
     const response = await gapiCall(() =>
       window.gapi.client.sheets.spreadsheets.values.get({
         spreadsheetId,
@@ -91,7 +125,7 @@ const getValues = async (range, spreadsheetId = salesId()) => {
 const batchGetValues = async (ranges, spreadsheetId = salesId()) => {
   const list = ranges.filter(Boolean);
   if (!list.length) return [];
-  if (isGapiReady()) {
+  if (useGapiSheets()) {
     const response = await gapiCall(() =>
       window.gapi.client.sheets.spreadsheets.values.batchGet({
         spreadsheetId,
@@ -106,7 +140,7 @@ const batchGetValues = async (ranges, spreadsheetId = salesId()) => {
 };
 
 const appendValues = async (range, values, spreadsheetId = salesId()) => {
-  if (isGapiReady()) {
+  if (useGapiSheets()) {
     await gapiCall(() =>
       window.gapi.client.sheets.spreadsheets.values.append({
         spreadsheetId,
@@ -125,7 +159,7 @@ const appendValues = async (range, values, spreadsheetId = salesId()) => {
 };
 
 const updateValues = async (range, values, spreadsheetId = salesId()) => {
-  if (isGapiReady()) {
+  if (useGapiSheets()) {
     await gapiCall(() =>
       window.gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId,
@@ -145,7 +179,7 @@ const updateValues = async (range, values, spreadsheetId = salesId()) => {
 const getSpreadsheet = async ({ force = false, spreadsheetId = salesId() } = {}) => {
   const cached = metadataCache.get(spreadsheetId);
   if (!force && cached && Date.now() - cached.at < METADATA_TTL_MS) return cached.data;
-  const data = isGapiReady()
+  const data = useGapiSheets()
     ? (
         await gapiCall(() =>
           window.gapi.client.sheets.spreadsheets.get({
@@ -162,7 +196,7 @@ const sheetTitles = (spreadsheet) => (spreadsheet.sheets || []).map((sheet) => s
 
 const batchUpdate = async (requests, spreadsheetId = salesId()) => {
   invalidateSpreadsheetCache(spreadsheetId);
-  if (isGapiReady()) {
+  if (useGapiSheets()) {
     await gapiCall(() =>
       window.gapi.client.sheets.spreadsheets.batchUpdate({
         spreadsheetId,
@@ -241,6 +275,7 @@ export const ensureWorkbook = async () => {
     [SHEETS.SETTINGS, HEADERS[SHEETS.SETTINGS]],
     [SHEETS.INTERACTIONS, INTERACTION_HEADERS],
     [SHEETS.AUDIT, HEADERS[SHEETS.AUDIT]],
+    [SHEETS.USERS, HEADERS[SHEETS.USERS]],
   ]);
 
   await ensureRequiredSheets(trainingId(), [
@@ -428,46 +463,126 @@ const toDirectoryUser = (row = {}) => ({
   'User Type': String(row['User Type'] || '').trim(),
   'User Role': String(row['User Role'] || '').trim(),
   'Calendar ID': String(row['Calendar ID'] || '').trim(),
+  'Last Login': String(row['Last Login'] || '').trim(),
+  Registered: String(row.Registered || '').trim() || 'Yes',
 });
 
-export const getUsers = async () => (await getObjectsSafe(SHEETS.USERS)).map(toDirectoryUser);
+const listUsersFrom = async (spreadsheetId) => {
+  const values = await getValues(a1(SHEETS.USERS, 'A:Z'), spreadsheetId);
+  return rowsToObjects(values, HEADERS[SHEETS.USERS]).map(toDirectoryUser);
+};
+
+const writeUserToSpreadsheet = async (spreadsheetId, payload) => {
+  await ensureRequiredSheets(spreadsheetId, [[SHEETS.USERS, HEADERS[SHEETS.USERS]]]);
+  const users = await listUsersFrom(spreadsheetId);
+  const existing = users.find((row) => sameEmail(row.Email, payload.Email));
+  const lastCol = String.fromCharCode(64 + HEADERS[SHEETS.USERS].length);
+  if (existing?._row) {
+    const next = {
+      ...existing,
+      ...payload,
+      Username: payload.Username || existing.Username,
+      Email: payload.Email,
+      'User Type': existing['User Type'] || payload['User Type'] || 'Sales',
+      'User Role': existing['User Role'] || payload['User Role'] || 'Team member',
+      'Calendar ID': existing['Calendar ID'] || payload['Calendar ID'] || 'primary',
+      'Last Login': payload['Last Login'] || existing['Last Login'],
+      Registered: 'Yes',
+    };
+    await updateValues(
+      a1(SHEETS.USERS, `A${existing._row}:${lastCol}${existing._row}`),
+      [objectToRow(next, HEADERS[SHEETS.USERS])],
+      spreadsheetId
+    );
+    return toDirectoryUser({ ...next, _row: existing._row });
+  }
+  await appendValues(a1(SHEETS.USERS, 'A:Z'), [objectToRow(payload, HEADERS[SHEETS.USERS])], spreadsheetId);
+  return toDirectoryUser(payload);
+};
+
+export const getUsers = async () => {
+  await ensureTrainingSheets();
+  if (isDemoMode()) return (await mock.mockGetObjects(SHEETS.USERS)).map(toDirectoryUser);
+  return listUsersFrom(trainingId());
+};
 
 export const upsertDirectoryUser = async ({ name, email }) => {
   const username = String(name || '').trim() || String(email || '').split('@')[0];
   const address = String(email || '').trim().toLowerCase();
   if (!address) throw new Error('A Google email is required to record this user.');
 
-  const users = await getUsers();
-  const existing = users.find((row) => sameEmail(row.Email, address));
-  if (existing) {
-    const next = {
-      ...existing,
-      Username: username || existing.Username,
+  const loggedInAt = nowIso();
+  if (isDemoMode()) {
+    const users = await getUsers();
+    const existing = users.find((row) => sameEmail(row.Email, address));
+    const payload = {
+      Username: username,
       Email: address,
-      'User Type': existing['User Type'] || 'Sales',
-      'User Role': existing['User Role'] || (users.length === 1 ? 'Admin' : 'Team member'),
-      'Calendar ID': existing['Calendar ID'] || 'primary',
+      'User Type': existing?.['User Type'] || 'Sales',
+      'User Role': existing?.['User Role'] || (users.length === 0 ? 'Admin' : 'Team member'),
+      'Calendar ID': existing?.['Calendar ID'] || 'primary',
+      'Last Login': loggedInAt,
+      Registered: 'Yes',
     };
-    if (
-      next.Username !== existing.Username ||
-      next['User Type'] !== existing['User Type'] ||
-      next['User Role'] !== existing['User Role'] ||
-      next['Calendar ID'] !== existing['Calendar ID']
-    ) {
-      return toDirectoryUser(await updateDirectoryUser(address, next));
-    }
-    return toDirectoryUser(next);
+    if (existing) return toDirectoryUser(await updateDirectoryUser(address, payload));
+    await appendObject(SHEETS.USERS, payload);
+    return toDirectoryUser(payload);
   }
 
+  let users = [];
+  try {
+    users = await getUsers();
+  } catch (error) {
+    if (!isPermissionError(error)) throw error;
+  }
   const payload = {
     Username: username,
     Email: address,
-    'User Type': users.length === 0 ? 'Sales' : 'Sales',
+    'User Type': 'Sales',
     'User Role': users.length === 0 ? 'Admin' : 'Team member',
     'Calendar ID': 'primary',
+    'Last Login': loggedInAt,
+    Registered: 'Yes',
   };
-  await appendObject(SHEETS.USERS, payload);
-  return toDirectoryUser(payload);
+
+  const targets = [];
+  try {
+    targets.push({ id: trainingId(), label: 'training' });
+  } catch (error) {
+    console.warn(error);
+  }
+  try {
+    const sales = salesId();
+    if (sales && !targets.some((item) => item.id === sales)) targets.push({ id: sales, label: 'sales' });
+  } catch (error) {
+    console.warn(error);
+  }
+  if (!targets.length) {
+    throw new Error('A Google spreadsheet ID is missing. Add sales and training spreadsheet IDs in setup.');
+  }
+
+  const errors = [];
+  let saved = null;
+  for (const target of targets) {
+    try {
+      saved = await writeUserToSpreadsheet(target.id, payload);
+      break;
+    } catch (error) {
+      errors.push(describeSheetWriteError(error, target.id, target.label, address));
+    }
+  }
+  if (!saved) {
+    throw new Error(errors.join(' ') || `Google sign-in could not register ${address} on the Users sheet.`);
+  }
+
+  for (const target of targets) {
+    try {
+      await writeUserToSpreadsheet(target.id, payload);
+    } catch (error) {
+      console.warn(error);
+    }
+  }
+  return toDirectoryUser(saved);
 };
 
 export const updateDirectoryUser = async (email, patch) => {

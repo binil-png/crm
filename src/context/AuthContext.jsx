@@ -7,7 +7,7 @@ import {
   isDemoMode,
   setAccessToken,
 } from '../services/googleApi';
-import { ensureWorkbook, upsertDirectoryUser } from '../services/sheetsService';
+import { ensureWorkbook, isPermissionError, upsertDirectoryUser } from '../services/sheetsService';
 import { useCrmStore } from '../store/crmStore';
 import {
   ROLE_LABELS,
@@ -17,6 +17,7 @@ import {
   isAdminRole,
   isLeadRole,
   normalizeCalendarId,
+  normalizeRegistered,
   normalizeUserRole,
   normalizeUserType,
   userTypeToAppRole,
@@ -47,18 +48,20 @@ const fromSheetRow = (row) => ({
   userType: normalizeUserType(row?.['User Type']) || 'Sales',
   userRole: normalizeUserRole(row?.['User Role']),
   calendarId: normalizeCalendarId(row?.['Calendar ID'] || row?.calendarId, row?.Email || row?.email),
+  registered: normalizeRegistered(row?.Registered ?? row?.registered),
 });
 
 export function AuthProvider({ children }) {
   const storedDirectory = readStoredDirectory();
   const [user, setUser] = useState(readStoredUser);
-  const [directory, setDirectory] = useState(storedDirectory);
+  const [directory, setDirectory] = useState(storedDirectory ? fromSheetRow(storedDirectory) : null);
   const [role, setRole] = useState(
     storedDirectory ? userTypeToAppRole(storedDirectory.userType) : localStorage.getItem(STORAGE_KEYS.ROLE) || ROLES.SALES
   );
   const [booting, setBooting] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [registration, setRegistration] = useState(null);
   const users = useCrmStore((state) => state.users);
 
   const applyDirectory = (row) => {
@@ -123,11 +126,13 @@ export function AuthProvider({ children }) {
     const nextType = normalizeUserType(row['User Type']) || 'Sales';
     const nextRole = normalizeUserRole(row['User Role']);
     const nextCalendar = normalizeCalendarId(row['Calendar ID'], row.Email);
+    const nextRegistered = normalizeRegistered(row.Registered);
     if (
       directory?.userType === nextType &&
       directory?.userRole === nextRole &&
       directory?.username === String(row.Username || '').trim() &&
-      directory?.calendarId === nextCalendar
+      directory?.calendarId === nextCalendar &&
+      directory?.registered === nextRegistered
     ) {
       return;
     }
@@ -144,14 +149,42 @@ export function AuthProvider({ children }) {
   };
 
   const finishLogin = async (profile, token, expiresIn) => {
-    persistUser(profile, token, expiresIn);
-    await initGapi();
-    await ensureWorkbook();
-    await resolveDirectory(profile);
+    try {
+      if (token) {
+        setAccessToken(token);
+        sessionStorage.setItem(STORAGE_KEYS.TOKEN_EXP, String(Date.now() + expiresIn * 1000));
+      }
+      await initGapi();
+      try {
+        await ensureWorkbook();
+      } catch (error) {
+        if (!isPermissionError(error)) throw error;
+      }
+      const row = await upsertDirectoryUser({
+        name: profile?.name || profile?.given_name || profile?.Username,
+        email: profile?.email,
+      });
+      applyDirectory(row);
+      useCrmStore.getState().rememberDirectoryUser(row);
+      persistUser({ ...profile, registered: true }, token, expiresIn);
+      setRegistration({
+        username: row.Username,
+        email: row.Email,
+        at: row['Last Login'],
+        registered: true,
+      });
+    } catch (err) {
+      setAccessToken('');
+      sessionStorage.removeItem(STORAGE_KEYS.USER);
+      sessionStorage.removeItem(STORAGE_KEYS.DIRECTORY);
+      sessionStorage.removeItem(STORAGE_KEYS.TOKEN);
+      throw err;
+    }
   };
 
   const googleLogin = useGoogleLogin({
     scope: SCOPES,
+    prompt: 'select_account',
     onSuccess: async (tokenResponse) => {
       setBusy(true);
       setError('');
@@ -210,14 +243,16 @@ export function AuthProvider({ children }) {
     () => ({
       user,
       directory,
+      registration,
       calendarId: directory?.calendarId || 'primary',
       role,
       roleLabel: ROLE_LABELS[role],
       userType: directory?.userType || ROLE_LABELS[role],
       userRole: directory?.userRole || 'Team member',
+      isRegistered: Boolean(user && directory?.registered),
       isAdmin: isAdminRole(directory?.userRole),
       isTeamLead: isLeadRole(directory?.userRole),
-      isAuthenticated: Boolean(user),
+      isAuthenticated: Boolean(user && directory?.registered),
       booting,
       busy,
       error,
@@ -227,7 +262,7 @@ export function AuthProvider({ children }) {
       switchRole,
       applyDirectory,
     }),
-    [user, directory, role, booting, busy, error]
+    [user, directory, registration, role, booting, busy, error]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
