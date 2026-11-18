@@ -1,0 +1,13 @@
+image: node:20
+
+pipelines:
+  default:
+    - step:
+        name: Build and Test
+        caches:
+          - node
+        script:
+          - npm install          # Install dependencies
+          - npm run build         # Build the Vite project
+        artifacts:
+          - dist/**  
