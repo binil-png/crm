@@ -24,13 +24,17 @@ export default function Navbar() {
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white">
       {registration?.email ? (
         <p className="border-b border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-800">
-          Registered in the app and on the Users Google Sheet: {registration.username} ({registration.email})
+          {isDemoMode()
+            ? `Registered in localStorage test data: ${registration.username} (${registration.email})`
+            : `Registered in the app and on the Users Google Sheet: ${registration.username} (${registration.email})`}
         </p>
       ) : null}
       <div className="flex w-full flex-wrap items-center justify-between gap-3 px-3 py-3">
         <div>
           <p className="text-sm font-semibold">Sheets CRM</p>
-          <p className="text-xs text-slate-500">Google Sheets + Calendar, no backend</p>
+          <p className="text-xs text-slate-500">
+            {isDemoMode() ? 'LocalStorage test mode · no Google Sheets' : 'Google Sheets + Calendar, no backend'}
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">

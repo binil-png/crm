@@ -289,7 +289,9 @@ const readDb = () => {
       localStorage.setItem(STORAGE_KEYS.MOCK_DB, JSON.stringify(seeded));
       return seeded;
     }
-    return parsed;
+    const migrated = migrateDb(parsed);
+    writeDb(migrated);
+    return migrated;
   } catch {
     const fallback = seedDb();
     localStorage.setItem(STORAGE_KEYS.MOCK_DB, JSON.stringify(fallback));
@@ -298,6 +300,38 @@ const readDb = () => {
 };
 
 const writeDb = (db) => localStorage.setItem(STORAGE_KEYS.MOCK_DB, JSON.stringify(db));
+
+const ensureHeaderRow = (db, sheetName, headers) => {
+  const rows = Array.isArray(db[sheetName]) ? db[sheetName] : [];
+  if (!rows.length) {
+    db[sheetName] = [headers];
+    return;
+  }
+  const current = rows[0].map((cell) => String(cell || '').trim());
+  const missing = headers.filter((header) => !current.includes(header));
+  if (missing.length) rows[0] = [...current.filter(Boolean), ...missing];
+  db[sheetName] = rows;
+};
+
+const migrateDb = (db) => {
+  if (!db || typeof db !== 'object') return seedDb();
+  ensureHeaderRow(db, SHEETS.SETTINGS, HEADERS[SHEETS.SETTINGS]);
+  ensureHeaderRow(db, SHEETS.INTERACTIONS, INTERACTION_HEADERS);
+  ensureHeaderRow(db, SHEETS.AUDIT, HEADERS[SHEETS.AUDIT]);
+  ensureHeaderRow(db, SHEETS.CLIENTS, HEADERS[SHEETS.CLIENTS]);
+  ensureHeaderRow(db, SHEETS.SESSIONS, HEADERS[SHEETS.SESSIONS]);
+  ensureHeaderRow(db, SHEETS.LOGS, HEADERS[SHEETS.LOGS]);
+  ensureHeaderRow(db, SHEETS.USERS, HEADERS[SHEETS.USERS]);
+  if (!db.ANWAR) db.ANWAR = [LEAD_HEADERS];
+  if (!db.SUNISH) db.SUNISH = [LEAD_HEADERS];
+  return db;
+};
+
+export const resetMockDb = () => {
+  const seeded = seedDb();
+  writeDb(seeded);
+  return seeded;
+};
 
 const getRows = (sheetName) => readDb()[sheetName] || [HEADERS[sheetName] || LEAD_HEADERS];
 

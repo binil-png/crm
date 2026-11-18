@@ -23,9 +23,8 @@ export default function SetupScreen({ onSaved }) {
       <div className="w-full max-w-xl rounded-lg border border-slate-200 bg-white p-6">
         <h1 className="text-xl font-semibold">Connect Google workspace</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Create an OAuth client in Google Cloud, enable Sheets API v4 and Calendar API v3, then paste the IDs below.
-          For every Google account to use the CRM, share both sheets once with the service account in
-          GOOGLE_SERVICE_ACCOUNT_FILE (Editor), not with each user.
+          Paste Google IDs for live Sheets, or choose local test mode. Local test stores leads, users, training, and work
+          logs in this browser’s localStorage and does not call Google.
         </p>
 
         <label className="mt-5 block text-sm font-medium">Google OAuth Client ID</label>
@@ -81,9 +80,13 @@ export default function SetupScreen({ onSaved }) {
             Save and continue
           </button>
           <button type="button" onClick={() => save(true)} className="rounded border border-slate-300 px-4 py-2">
-            Use local demo mode
+            Test with localStorage
           </button>
         </div>
+        <p className="mt-3 text-xs text-slate-500">
+          Local test uses sample sales and training data in this browser only. You can also open the login screen and
+          choose Test with localStorage even when Google IDs are already saved.
+        </p>
       </div>
     </div>
   );

@@ -50,6 +50,14 @@ export const resetConfig = () => {
 
 export const isDemoMode = () => getConfig().demoMode;
 
+export const enableLocalDemo = () => {
+  localStorage.setItem(STORAGE_KEYS.DEMO_MODE, '1');
+};
+
+export const disableLocalDemo = () => {
+  localStorage.removeItem(STORAGE_KEYS.DEMO_MODE);
+};
+
 const sheetsProxyUrl = () => envValue('VITE_SHEETS_API_URL', '/api/sheets') || '/api/sheets';
 
 let appSheetsStatus = { enabled: false, shareWith: '' };

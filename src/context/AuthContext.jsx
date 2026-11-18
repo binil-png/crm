@@ -1,12 +1,14 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useGoogleLogin } from '@react-oauth/google';
 import {
+  enableLocalDemo,
   fetchUserProfile,
   getConfig,
   initGapi,
   isDemoMode,
   setAccessToken,
 } from '../services/googleApi';
+import { resetMockDb } from '../services/mockBackend';
 import { ensureWorkbook, isPermissionError, upsertDirectoryUser } from '../services/sheetsService';
 import { useCrmStore } from '../store/crmStore';
 import {
@@ -200,22 +202,29 @@ export function AuthProvider({ children }) {
     onError: () => setError('Google sign-in was cancelled or failed.'),
   });
 
+  const enterLocalDemo = async ({ resetData = false } = {}) => {
+    setError('');
+    setBusy(true);
+    try {
+      enableLocalDemo();
+      if (resetData) resetMockDb();
+      const profile = {
+        name: 'Demo User',
+        email: 'demo@example.com',
+        picture: '',
+      };
+      await finishLogin(profile, 'demo-token', 86400);
+    } catch (err) {
+      setError(err.message || 'Could not start local demo mode.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const login = async () => {
     setError('');
     if (isDemoMode()) {
-      setBusy(true);
-      try {
-        const profile = {
-          name: 'Demo User',
-          email: 'demo@example.com',
-          picture: '',
-        };
-        await finishLogin(profile, 'demo-token', 86400);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setBusy(false);
-      }
+      await enterLocalDemo();
       return;
     }
     if (!getConfig().clientId) {
@@ -258,6 +267,7 @@ export function AuthProvider({ children }) {
       error,
       setError,
       login,
+      enterLocalDemo,
       logout,
       switchRole,
       applyDirectory,
