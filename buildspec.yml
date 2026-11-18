@@ -22,7 +22,7 @@ phases:
     commands:
       - echo "Starting the build phase..."
       - export NODE_OPTIONS="--max-old-space-size=8192"
-      - npm run build:ci
+      - npm run build
       - echo "build phase completed."
       - echo "Starting the post-build phase..."
       - cd dist
