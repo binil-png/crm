@@ -1,15 +1,34 @@
 version: 0.2
-
 phases:
   install:
     runtime-versions:
-      nodejs: 20
+      nodejs: 22
     commands:
-      - npm ci
+      - echo "Starting the install phase... env::${environment} build number ${CODEBUILD_BUILD_NUMBER}"
+      - aws --version
+      - |
+        if [ "${environment}" = "prod" ]; then
+          aws configure set preview.cloudfront true
+        fi
+
+  pre_build:
+    commands:
+      - echo "Starting the pre-build phase..."
+      - export VITE_BUILD_VERSION=$(date +"%d%m%Y-%H-%M-%S.$CODEBUILD_BUILD_NUMBER")
+      - npm install
+      - aws s3 cp s3://${config_bucket}/crm-client/${environment}/ . --recursive
+      - echo "Pre-build phase completed."
   build:
     commands:
+      - echo "Starting the build phase..."
+      - export NODE_OPTIONS="--max-old-space-size=8192"
       - npm run build
-  post_build:
-    commands:
-      - aws s3 sync dist/ s3://pappyjoe-crm/dist --delete
-      - aws cloudfront create-invalidation --distribution-id E3HO3V7IWEV263 --paths "/*"
+      - echo "build phase completed."
+      - echo "Starting the post-build phase..."
+      - cd dist
+      - ls -ltrh
+      - aws s3 sync . s3://${target_bucket}/ --exclude "*.html" --cache-control "max-age=31536000, public"
+      - aws s3 cp index.html s3://${target_bucket}/index.html --cache-control "no-cache, no-store, must-revalidate"
+      - aws configure set preview.cloudfront true
+      - aws cloudfront create-invalidation --distribution-id "$distribution_id" --paths "/*" || echo "Failed to invalidate $distribution_id";
+      - echo "Post-build phase completed."
