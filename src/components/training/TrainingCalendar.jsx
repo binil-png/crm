@@ -100,7 +100,7 @@ const readDragPayload = (event) => {
 };
 
 export default function TrainingCalendar() {
-  const { user, calendarId: myCalendarId, applyDirectory } = useAuth();
+  const { user, calendarId: myCalendarId, applyDirectory, privileges } = useAuth();
   const { clients, sessions, users, scheduleSessions, rescheduleSession, updateDirectoryUser } = useCrmStore();
   const team = useMemo(
     () => listTrainingTeam({ clients, sessions, users, extra: [user?.email], currentEmail: user?.email }),
@@ -108,7 +108,9 @@ export default function TrainingCalendar() {
   );
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [duration, setDuration] = useState(60);
-  const [viewEmail, setViewEmail] = useState(ALL_TRAINERS);
+  const [viewEmail, setViewEmail] = useState(
+    () => (privileges.defaultTrainerScope === 'self' && user?.email ? user.email : ALL_TRAINERS)
+  );
   const [trainerEmail, setTrainerEmail] = useState(user?.email || team[0]?.email || '');
   const [workType, setWorkType] = useState('Training');
   const [typeFilter, setTypeFilter] = useState('All');
@@ -277,7 +279,8 @@ export default function TrainingCalendar() {
           <h2 className="text-lg font-semibold">Training calendar</h2>
           <p className="text-sm text-slate-500">
             View every trainer’s sessions and status, or open one person’s calendar. New sessions still default to you
-            unless you pick someone else.
+            unless you pick someone else. Scheduling adds the lead as a Google Calendar guest so they get the invitation
+            email.
           </p>
           <p className="mt-1 text-xs text-slate-500">
             {viewEmail === ALL_TRAINERS
@@ -328,7 +331,7 @@ export default function TrainingCalendar() {
               label="Schedule as"
               value={trainerEmail}
               onChange={setTrainerEmail}
-              team={team}
+              team={privileges.canScheduleForOthers ? team : team.filter((member) => sameEmail(member.email, user?.email))}
               currentEmail={user?.email}
             />
           </div>

@@ -105,6 +105,13 @@ export default function ScheduleSessionModal({ client, onClose }) {
           You are selected by default. Choose another training team member to put the session on their calendar. They
           must share that calendar with you as “Make changes to events”.
         </p>
+        <p className="text-sm text-slate-500">
+          Google Calendar will email an invitation to{' '}
+          <span className="font-medium text-slate-700">
+            {client.Contact_Email || 'the lead’s Email ID on the sales sheet'}
+          </span>
+          .
+        </p>
 
         {slots.map((slot, index) => (
           <div key={index} className="rounded border border-slate-200 p-3">

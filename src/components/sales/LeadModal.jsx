@@ -28,7 +28,7 @@ import Modal from '../shared/Modal';
 import ScheduleDateTimeFields from './ScheduleDateTimeFields';
 
 export default function LeadModal({ lead, onClose, onCloseDeal, mode = 'full' }) {
-  const { user } = useAuth();
+  const { user, privileges } = useAuth();
   const { updateLead, passToTraining, scheduleCall, clients } = useCrmStore();
   const commentsOnly = mode === 'comments';
   const [form, setForm] = useState({ ...lead });
@@ -391,26 +391,30 @@ export default function LeadModal({ lead, onClose, onCloseDeal, mode = 'full' })
       ) : null}
 
       <div className="mt-5 flex flex-wrap gap-2">
-        <button type="button" onClick={save} disabled={busy} className="rounded bg-slate-900 px-4 py-2 text-white">
-          Save lead
-        </button>
-        {actions.map((status) => (
-          <button
-            key={status}
-            type="button"
-            disabled={busy}
-            onClick={() => applyStatus(status)}
-            className="rounded border border-slate-300 px-3 py-2 text-sm"
-          >
-            {status}
+        {privileges.canEditLead ? (
+          <button type="button" onClick={save} disabled={busy} className="rounded bg-slate-900 px-4 py-2 text-white">
+            Save lead
           </button>
-        ))}
-        {!closed ? (
+        ) : null}
+        {privileges.canEditLead
+          ? actions.map((status) => (
+              <button
+                key={status}
+                type="button"
+                disabled={busy}
+                onClick={() => applyStatus(status)}
+                className="rounded border border-slate-300 px-3 py-2 text-sm"
+              >
+                {status}
+              </button>
+            ))
+          : null}
+        {privileges.canEditLead && !closed ? (
           <button type="button" onClick={() => onCloseDeal(form)} className="rounded bg-emerald-700 px-4 py-2 text-white">
             Close lead
           </button>
         ) : null}
-        {form.Status === 'Demo Done-Closed' && !trainingClient ? (
+        {privileges.canPassToTraining && form.Status === 'Demo Done-Closed' && !trainingClient ? (
           <button
             type="button"
             disabled={busy}

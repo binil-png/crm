@@ -16,7 +16,7 @@ const formatSynced = (at, now) => {
 };
 
 export default function Navbar() {
-  const { user, role, userType, userRole, isAdmin, isRegistered, switchRole, logout, registration } = useAuth();
+  const { user, role, userType, userRole, privileges, isRegistered, switchRole, logout, registration } = useAuth();
   const { refreshAll, loading, syncing, lastSyncedAt } = useCrmStore();
   const now = useNow(10000);
 
@@ -44,7 +44,7 @@ export default function Navbar() {
             {isRegistered ? (
               <span className="rounded bg-emerald-100 px-2 py-1 font-medium text-emerald-800">Registered</span>
             ) : null}
-            {isAdmin ? (
+            {privileges.canSwitchModule ? (
               <div className="flex rounded border border-slate-200 p-1">
                 {Object.values(ROLES).map((value) => (
                   <button

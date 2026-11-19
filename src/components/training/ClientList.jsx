@@ -22,7 +22,7 @@ import TrainerStatusBoard from './TrainerStatusBoard';
 import WorkTypeSelect from './WorkTypeSelect';
 
 export default function ClientList() {
-  const { user } = useAuth();
+  const { user, privileges } = useAuth();
   const { clients, leads, pickClient, assignTrainer, sessions, users, setClientTrainingStatus, updateClient } =
     useCrmStore();
   const team = useMemo(
@@ -31,7 +31,9 @@ export default function ClientList() {
   );
   const [statusFilter, setStatusFilter] = useState('All');
   const [typeFilter, setTypeFilter] = useState('All');
-  const [trainerFilter, setTrainerFilter] = useState(ALL_TRAINERS);
+  const [trainerFilter, setTrainerFilter] = useState(
+    () => (privileges.defaultTrainerScope === 'self' && user?.email ? user.email : ALL_TRAINERS)
+  );
   const [scheduling, setScheduling] = useState(null);
   const [openId, setOpenId] = useState('');
   const [busyId, setBusyId] = useState('');
@@ -172,6 +174,7 @@ export default function ClientList() {
           const status = normalizeTrainingStatus(client.Training_Status);
           const workType = clientWorkType(client);
           const mine = sameEmail(client.Assigned_Trainer, user?.email);
+          const canEditClient = privileges.leadOrAdmin || mine || !client.Assigned_Trainer;
           const selectedTrainer = assignEmail[client.Client_ID] || user?.email || '';
           const selectedMember = team.find((member) => sameEmail(member.email, selectedTrainer));
           const alreadyAssigned = sameEmail(client.Assigned_Trainer, selectedTrainer);
@@ -206,7 +209,7 @@ export default function ClientList() {
                   <select
                     className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
                     value={status}
-                    disabled={busyId === client.Client_ID}
+                    disabled={busyId === client.Client_ID || !canEditClient}
                     onChange={(event) =>
                       run(client.Client_ID, () => setClientTrainingStatus(client.Client_ID, event.target.value))
                     }
@@ -220,7 +223,9 @@ export default function ClientList() {
                   <p className="mb-1">Type</p>
                   <WorkTypeSelect
                     value={workType}
-                    onChange={(next) => run(client.Client_ID, () => updateClient(client.Client_ID, { Work_Type: next }))}
+                    onChange={(next) =>
+                      canEditClient && run(client.Client_ID, () => updateClient(client.Client_ID, { Work_Type: next }))
+                    }
                   />
                 </div>
               </div>
@@ -234,21 +239,21 @@ export default function ClientList() {
                 <p className="mt-2 text-sm text-amber-700">Not picked yet — defaults to you</p>
               )}
 
-              {!isTrainingCompleted(client) ? (
+              {privileges.canAssignTrainer && !isTrainingCompleted(client) && canEditClient ? (
                 <div className="mt-3 max-w-sm">
                   <TrainerSelect
                     compact
                     label="Training team member"
                     value={selectedTrainer}
                     onChange={(email) => setAssignEmail((prev) => ({ ...prev, [client.Client_ID]: email }))}
-                    team={team}
+                    team={privileges.canScheduleForOthers ? team : team.filter((member) => sameEmail(member.email, user?.email))}
                     currentEmail={user?.email}
                   />
                 </div>
               ) : null}
 
               <div className="mt-3 flex flex-wrap gap-2">
-                {!isTrainingCompleted(client) ? (
+                {privileges.canAssignTrainer && !isTrainingCompleted(client) && canEditClient ? (
                   <button
                     type="button"
                     disabled={busyId === client.Client_ID || !selectedTrainer || alreadyAssigned}
@@ -259,13 +264,15 @@ export default function ClientList() {
                   </button>
                 ) : null}
 
-                <button
-                  type="button"
-                  className="rounded bg-slate-900 px-3 py-2 text-sm text-white"
-                  onClick={() => setScheduling(client)}
-                >
-                  Schedule session
-                </button>
+                {privileges.canScheduleSession && canEditClient ? (
+                  <button
+                    type="button"
+                    className="rounded bg-slate-900 px-3 py-2 text-sm text-white"
+                    onClick={() => setScheduling(client)}
+                  >
+                    Schedule session
+                  </button>
+                ) : null}
 
                 <button
                   type="button"

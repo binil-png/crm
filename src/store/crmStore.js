@@ -12,6 +12,7 @@ import {
   leadKey,
   nowIso,
   findClientForLead,
+  findLeadForClient,
   todayInput,
   trainingLeadId,
 } from '../utils/constants';
@@ -202,9 +203,18 @@ export const useCrmStore = create((set, get) => ({
   scheduleSessions: async ({ client, trainerEmail, sessions, workType }) => {
     const created = [];
     const trainerCalendarId = calendarIdForEmail(trainerEmail, get().users);
+    const sourceLead = findLeadForClient(get().leads, client);
+    const leadEmail = String(client.Contact_Email || sourceLead?.['Email ID'] || '')
+      .trim()
+      .toLowerCase();
+    if (!leadEmail || !leadEmail.includes('@')) {
+      throw new Error(
+        `Add an email for ${client.Client_Name} on the sales lead (Email ID) or Training_Clients (Contact_Email) so Google Calendar can send the invitation.`
+      );
+    }
     for (const item of sessions) {
       const sessionType = item.sessionType || workType || client.Work_Type || 'Training';
-      const attendees = [client.Contact_Email, trainerEmail, currentUserEmail()].filter(Boolean).join(',');
+      const attendees = [leadEmail, trainerEmail, currentUserEmail()].filter(Boolean).join(',');
       let event;
       try {
         event = await createCalendarEvent({
@@ -212,12 +222,16 @@ export const useCrmStore = create((set, get) => ({
           start: item.start,
           end: item.end,
           attendees,
-          description: `${sessionType} session for ${client.Client_Name}`,
+          attendeeNames: {
+            [leadEmail]: client.Client_Name,
+            [String(trainerEmail || '').toLowerCase()]: 'Trainer',
+          },
+          description: `${sessionType} session for ${client.Client_Name}. Google Calendar is sending this invitation to ${leadEmail}.`,
           calendarId: trainerCalendarId,
         });
       } catch (error) {
         throw new Error(
-          `Could not add this session to ${trainerEmail}'s calendar (${trainerCalendarId}). Share that calendar with you as "Make changes to events", or set Calendar ID on the Users sheet. ${error.message || ''}`
+          `Could not add this session to ${trainerEmail}'s calendar (${trainerCalendarId}) or email ${leadEmail}. Share that calendar with you as "Make changes to events", and confirm Google Calendar can invite guests. ${error.message || ''}`
         );
       }
       const session = {
@@ -246,6 +260,7 @@ export const useCrmStore = create((set, get) => ({
 
     const clientPatch = {
       Assigned_Trainer: trainerEmail,
+      Contact_Email: leadEmail,
       Training_Status: client.Training_Status === 'Completed' ? 'Completed' : 'Ongoing',
       Work_Type: client.Work_Type || workType || created[0]?.Session_Type || 'Training',
     };
@@ -274,7 +289,16 @@ export const useCrmStore = create((set, get) => ({
     if (session.Calendar_Event_ID) {
       const calendarId = session.Calendar_ID || calendarIdForEmail(session.Trainer_Email, get().users);
       try {
-        await patchCalendarEvent(session.Calendar_Event_ID, { start: nextStart, end: nextEnd, calendarId });
+        const client = get().clients.find((item) => item.Client_ID === session.Client_ID);
+        const sourceLead = findLeadForClient(get().leads, client);
+        const leadEmail = String(client?.Contact_Email || sourceLead?.['Email ID'] || '').trim();
+        await patchCalendarEvent(session.Calendar_Event_ID, {
+          start: nextStart,
+          end: nextEnd,
+          calendarId,
+          attendees: [leadEmail, session.Trainer_Email, currentUserEmail()].filter(Boolean).join(','),
+          attendeeNames: leadEmail ? { [leadEmail.toLowerCase()]: client?.Client_Name } : {},
+        });
       } catch (error) {
         console.warn(error);
       }
