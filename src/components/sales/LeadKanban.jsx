@@ -35,7 +35,7 @@ import Modal from '../shared/Modal';
 const PAGE_SIZE = 50;
 
 export default function LeadKanban() {
-  const { user } = useAuth();
+  const { user, privileges } = useAuth();
   const { leads, leadSheets, createLead, clients, updateLead } = useCrmStore();
   const now = useNow(15000);
   const [group, setGroup] = useState('All');
@@ -66,6 +66,7 @@ export default function LeadKanban() {
   };
 
   const changeStatus = async (lead, nextStatus) => {
+    if (!privileges.canEditLead) return;
     if (!nextStatus || nextStatus === lead.Status) return;
     skipRowClick.current = true;
     setStatusBusy(leadKey(lead));
@@ -122,14 +123,16 @@ export default function LeadKanban() {
             {visible.length} of {leads.length} rows · columns match the Google Sheet
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setCreating(true)}
-          className="inline-flex items-center gap-1 rounded bg-slate-900 px-3 py-2 text-sm text-white"
-        >
-          <Plus size={16} />
-          Add lead
-        </button>
+        {privileges.canAddLead ? (
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="inline-flex items-center gap-1 rounded bg-slate-900 px-3 py-2 text-sm text-white"
+          >
+            <Plus size={16} />
+            Add lead
+          </button>
+        ) : null}
       </div>
 
       <div className="mb-3 flex flex-wrap gap-2">
@@ -224,7 +227,7 @@ export default function LeadKanban() {
               const stages = comments.length ? comments : [{ raw: '—', num: 0, message: '' }];
               const span = stages.length;
               const trainingClient = findClientForLead(clients, lead);
-              const canPass = isCompletedLead(lead) && !trainingClient;
+              const canPass = privileges.canPassToTraining && isCompletedLead(lead) && !trainingClient;
               return stages.map((comment, index) => (
                 <tr
                   key={`${leadKey(lead)}-${comment.num || index}`}
@@ -282,6 +285,7 @@ export default function LeadKanban() {
                                 busy={statusBusy === leadKey(lead)}
                                 trainingClient={trainingClient}
                                 canPass={canPass}
+                                readOnly={!privileges.canEditLead}
                                 onChange={changeStatus}
                               />
                             ) : (
@@ -332,7 +336,7 @@ export default function LeadKanban() {
       </div>
       </div>
       <div className="flex flex-col lg:sticky lg:top-20 lg:max-h-[calc(100vh-5.5rem)] lg:overflow-auto">
-        <TrainingDropBox leads={leads} />
+        {privileges.canPassToTraining ? <TrainingDropBox leads={leads} /> : null}
         <div className="my-3 flex items-center gap-2 px-1" role="separator" aria-label="Call schedule">
           <span className="h-[2px] flex-1 rounded bg-slate-300" />
           <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Schedule</span>
@@ -391,7 +395,7 @@ function CommentCell({ comment, onOpen }) {
   );
 }
 
-function StatusSelect({ lead, busy, trainingClient, canPass, onChange }) {
+function StatusSelect({ lead, busy, trainingClient, canPass, readOnly, onChange }) {
   const current = lead.Status || 'New';
   const options = PIPELINE_STATUSES.includes(current) ? PIPELINE_STATUSES : [current, ...PIPELINE_STATUSES];
   return (
@@ -401,7 +405,7 @@ function StatusSelect({ lead, busy, trainingClient, canPass, onChange }) {
       onMouseDown={(event) => event.stopPropagation()}
     >
       <select
-        disabled={busy}
+        disabled={busy || readOnly}
         className={`w-full max-w-[190px] rounded border border-slate-200 px-1.5 py-1 text-xs ${pipelineColor(current)}`}
         value={current}
         onChange={(event) => onChange(lead, event.target.value)}

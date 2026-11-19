@@ -14,7 +14,7 @@ import WorkLogForm from './components/worklog/WorkLogForm';
 import UsersPanel from './components/admin/UsersPanel';
 
 export default function App() {
-  const { isAuthenticated, booting, role, isAdmin, error } = useAuth();
+  const { isAuthenticated, booting, role, privileges, error } = useAuth();
   const { refreshAll, error: dataError, loading } = useCrmStore();
   const [tab, setTab] = useState('main');
 
@@ -55,7 +55,7 @@ export default function App() {
   ];
   const tabs = [
     ...(role === ROLES.SALES ? salesTabs : trainingTabs),
-    ...(isAdmin ? [{ id: 'users', label: 'Users' }] : []),
+    ...(privileges.canViewUsers ? [{ id: 'users', label: 'Users' }] : []),
   ];
 
   return (
@@ -92,7 +92,7 @@ export default function App() {
         ) : null}
         {role === ROLES.TRAINING && tab === 'worklog' ? <WorkLogForm /> : null}
         {tab === 'messages' ? <CommunicationPanel /> : null}
-        {isAdmin && tab === 'users' ? <UsersPanel /> : null}
+        {privileges.canViewUsers && tab === 'users' ? <UsersPanel /> : null}
       </main>
     </div>
   );

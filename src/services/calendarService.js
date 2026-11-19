@@ -5,19 +5,31 @@ import * as mock from './mockBackend';
 const splitEmails = (value) =>
   String(value || '')
     .split(/[,\s;]+/)
-    .map((email) => email.trim())
-    .filter(Boolean);
+    .map((email) => email.trim().toLowerCase())
+    .filter((email, index, list) => email.includes('@') && list.indexOf(email) === index);
 
 const toEventTimes = (start, end) => ({
   start: { dateTime: new Date(start).toISOString(), timeZone: getTimeZone() },
   end: { dateTime: new Date(end).toISOString(), timeZone: getTimeZone() },
 });
 
-const buildEventResource = ({ title, start, end, attendees, description }) => ({
+const attendeeObjects = (attendees, names = {}) =>
+  splitEmails(attendees).map((email) => {
+    const displayName = names[email] || names[email.toLowerCase()] || '';
+    return displayName
+      ? { email, displayName, responseStatus: 'needsAction' }
+      : { email, responseStatus: 'needsAction' };
+  });
+
+const buildEventResource = ({ title, start, end, attendees, attendeeNames, description }) => ({
   summary: title,
   description: description || '',
   ...toEventTimes(start, end),
-  attendees: splitEmails(attendees).map((email) => ({ email })),
+  attendees: attendeeObjects(attendees, attendeeNames),
+  guestsCanModify: false,
+  guestsCanInviteOthers: false,
+  guestsCanSeeOtherGuests: true,
+  reminders: { useDefault: true },
   conferenceData: {
     createRequest: {
       requestId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -28,12 +40,12 @@ const buildEventResource = ({ title, start, end, attendees, description }) => ({
 
 const resolveCalendar = (calendarId) => String(calendarId || getCalendarId() || 'primary').trim() || 'primary';
 
-export const createCalendarEvent = async ({ title, start, end, attendees, description, calendarId }) => {
+export const createCalendarEvent = async ({ title, start, end, attendees, attendeeNames, description, calendarId }) => {
   if (isDemoMode()) {
     return mock.mockCreateCalendarEvent({ title, start, end, attendees });
   }
 
-  const resource = buildEventResource({ title, start, end, attendees, description });
+  const resource = buildEventResource({ title, start, end, attendees, attendeeNames, description });
   const target = resolveCalendar(calendarId);
   const encoded = encodeURIComponent(target);
 
@@ -53,14 +65,14 @@ export const createCalendarEvent = async ({ title, start, end, attendees, descri
   );
 };
 
-export const patchCalendarEvent = async (eventId, { start, end, title, attendees, calendarId }) => {
+export const patchCalendarEvent = async (eventId, { start, end, title, attendees, attendeeNames, calendarId }) => {
   if (!eventId) throw new Error('Calendar event id is missing.');
   if (isDemoMode()) return mock.mockPatchCalendarEvent(eventId, { start, end });
 
   const resource = {
     ...(title ? { summary: title } : {}),
     ...(start && end ? toEventTimes(start, end) : {}),
-    ...(attendees ? { attendees: splitEmails(attendees).map((email) => ({ email })) } : {}),
+    ...(attendees ? { attendees: attendeeObjects(attendees, attendeeNames) } : {}),
   };
 
   const target = resolveCalendar(calendarId);

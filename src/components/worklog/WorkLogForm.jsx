@@ -5,7 +5,7 @@ import { ENTRY_TYPES, todayInput } from '../../utils/constants';
 import LeaveRescheduleModal from './LeaveRescheduleModal';
 
 export default function WorkLogForm() {
-  const { user } = useAuth();
+  const { user, privileges } = useAuth();
   const { worklogs, addWorklog } = useCrmStore();
   const [entryType, setEntryType] = useState(ENTRY_TYPES.WORK);
   const [date, setDate] = useState(todayInput());
@@ -15,7 +15,9 @@ export default function WorkLogForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const mine = worklogs.filter((log) => log.User_Email === user?.email);
+  const visibleLogs = privileges.canViewAllWorklogs
+    ? worklogs
+    : worklogs.filter((log) => log.User_Email === user?.email);
 
   const submit = async (event) => {
     event.preventDefault();
@@ -105,13 +107,14 @@ export default function WorkLogForm() {
       </form>
 
       <div className="rounded-lg border border-slate-200 bg-white p-4">
-        <h3 className="font-medium">Your recent entries</h3>
+        <h3 className="font-medium">{privileges.canViewAllWorklogs ? 'Team work logs' : 'Your recent entries'}</h3>
         <div className="mt-3 space-y-3">
-          {mine.length === 0 ? <p className="text-sm text-slate-500">No logs yet.</p> : null}
-          {mine.slice(0, 8).map((log) => (
+          {visibleLogs.length === 0 ? <p className="text-sm text-slate-500">No logs yet.</p> : null}
+          {visibleLogs.slice(0, 8).map((log) => (
             <article key={log.Log_ID} className="rounded border border-slate-100 p-3 text-sm">
               <p className="text-xs text-slate-500">
                 {log.Date} · {log.Entry_Type}
+                {privileges.canViewAllWorklogs ? ` · ${log.User_Email}` : ''}
               </p>
               <p className="mt-1">{log.Entry_Type === ENTRY_TYPES.LEAVE ? log.Leave_Reason : log.Work_Summary}</p>
               {log.Rescheduled_Sessions ? (

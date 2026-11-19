@@ -15,14 +15,16 @@ import {
 import TrainerSelect, { ALL_TRAINERS } from './TrainerSelect';
 
 export default function SessionList({ clientId, compact = false }) {
-  const { user } = useAuth();
+  const { user, privileges } = useAuth();
   const { sessions, clients, users, completeSession, updateSession } = useCrmStore();
   const team = useMemo(
     () => listTrainingTeam({ clients, sessions, users, extra: [user?.email], currentEmail: user?.email }),
     [clients, sessions, users, user?.email]
   );
   const [typeFilter, setTypeFilter] = useState('All');
-  const [trainerFilter, setTrainerFilter] = useState(ALL_TRAINERS);
+  const [trainerFilter, setTrainerFilter] = useState(
+    () => (privileges.defaultTrainerScope === 'self' && user?.email ? user.email : ALL_TRAINERS)
+  );
   const rows = sessions
     .filter((session) => !clientId || session.Client_ID === clientId)
     .filter((session) => typeFilter === 'All' || sessionWorkType(session) === typeFilter)
@@ -111,7 +113,9 @@ export default function SessionList({ clientId, compact = false }) {
                     <span className={`rounded px-2 py-0.5 text-xs ${sessionColor(session.Status)}`}>{session.Status}</span>
                   </td>
                   <td className="px-3 py-2">
-                    {session.Status !== 'Completed' && session.Status !== 'Cancelled' ? (
+                    {session.Status !== 'Completed' &&
+                    session.Status !== 'Cancelled' &&
+                    (privileges.canManageAnySession || sameEmail(session.Trainer_Email, user?.email)) ? (
                       <div className="flex gap-2">
                         <button
                           type="button"

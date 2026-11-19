@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useGoogleLogin } from '@react-oauth/google';
 import {
+  disableLocalDemo,
   enableLocalDemo,
   fetchUserProfile,
   getConfig,
@@ -17,7 +18,6 @@ import {
   SCOPES,
   STORAGE_KEYS,
   isAdminRole,
-  isLeadRole,
   normalizeCalendarId,
   normalizeRegistered,
   normalizeUserRole,
@@ -25,6 +25,7 @@ import {
   userTypeToAppRole,
 } from '../utils/constants';
 import { initPushNotifications } from '../services/pushNotifications';
+import { getPrivileges, workspaceFromPrivileges } from '../utils/privileges';
 
 const AuthContext = createContext(null);
 
@@ -223,12 +224,9 @@ export function AuthProvider({ children }) {
 
   const login = async () => {
     setError('');
-    if (isDemoMode()) {
-      await enterLocalDemo();
-      return;
-    }
+    disableLocalDemo();
     if (!getConfig().clientId) {
-      setError('Add a Google OAuth client ID first.');
+      setError('Add a Google OAuth client ID, sales spreadsheet ID, and training spreadsheet ID first.');
       return;
     }
     googleLogin();
@@ -248,19 +246,26 @@ export function AuthProvider({ children }) {
     localStorage.setItem(STORAGE_KEYS.ROLE, nextRole);
   };
 
+  const privileges = useMemo(
+    () => getPrivileges({ userType: directory?.userType, userRole: directory?.userRole }),
+    [directory?.userType, directory?.userRole]
+  );
+  const workspace = workspaceFromPrivileges(privileges, role);
+
   const value = useMemo(
     () => ({
       user,
       directory,
       registration,
       calendarId: directory?.calendarId || 'primary',
-      role,
-      roleLabel: ROLE_LABELS[role],
-      userType: directory?.userType || ROLE_LABELS[role],
+      role: workspace,
+      roleLabel: ROLE_LABELS[workspace],
+      userType: directory?.userType || ROLE_LABELS[workspace],
       userRole: directory?.userRole || 'Team member',
+      privileges,
       isRegistered: Boolean(user && directory?.registered),
-      isAdmin: isAdminRole(directory?.userRole),
-      isTeamLead: isLeadRole(directory?.userRole),
+      isAdmin: privileges.admin,
+      isTeamLead: privileges.leadOrAdmin,
       isAuthenticated: Boolean(user && directory?.registered),
       booting,
       busy,
@@ -272,7 +277,7 @@ export function AuthProvider({ children }) {
       switchRole,
       applyDirectory,
     }),
-    [user, directory, registration, role, booting, busy, error]
+    [user, directory, registration, workspace, privileges, booting, busy, error]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

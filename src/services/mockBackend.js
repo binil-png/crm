@@ -271,6 +271,42 @@ const seedDb = () => {
         },
         HEADERS[SHEETS.USERS]
       ),
+      objectToRow(
+        {
+          Username: 'Meera Nair',
+          Email: 'meera.training@example.com',
+          'User Type': 'Technical support',
+          'User Role': 'Team lead',
+          'Calendar ID': 'primary',
+          'Last Login': '',
+          Registered: 'Yes',
+        },
+        HEADERS[SHEETS.USERS]
+      ),
+      objectToRow(
+        {
+          Username: 'Priya Shah',
+          Email: 'priya.sales@example.com',
+          'User Type': 'Sales',
+          'User Role': 'Team member',
+          'Calendar ID': 'primary',
+          'Last Login': '',
+          Registered: 'Yes',
+        },
+        HEADERS[SHEETS.USERS]
+      ),
+      objectToRow(
+        {
+          Username: 'Arun Sales',
+          Email: 'arun.sales@example.com',
+          'User Type': 'Sales',
+          'User Role': 'Team lead',
+          'Calendar ID': 'primary',
+          'Last Login': '',
+          Registered: 'Yes',
+        },
+        HEADERS[SHEETS.USERS]
+      ),
     ],
   };
 };
