@@ -111,7 +111,6 @@ export default function TrainingCalendar() {
   const [viewEmail, setViewEmail] = useState(
     () => (privileges.defaultTrainerScope === 'self' && user?.email ? user.email : ALL_TRAINERS)
   );
-  const [trainerEmail, setTrainerEmail] = useState(user?.email || team[0]?.email || '');
   const [workType, setWorkType] = useState('Training');
   const [typeFilter, setTypeFilter] = useState('All');
   const [selectedId, setSelectedId] = useState('');
@@ -127,9 +126,6 @@ export default function TrainingCalendar() {
     if (myCalendarId) setOwnCalendarId(myCalendarId);
   }, [myCalendarId]);
 
-  useEffect(() => {
-    if (user?.email && !trainerEmail) setTrainerEmail(user.email);
-  }, [user?.email, trainerEmail]);
   const previewRef = useRef(null);
   const previewPos = useRef({ x: 0, y: 0 });
 
@@ -235,9 +231,9 @@ export default function TrainingCalendar() {
         return;
       }
 
-      const trainer = trainerEmail || user?.email || client.Assigned_Trainer || '';
+      const trainer = user?.email || '';
       if (!trainer) {
-        setError('Select a training team member before scheduling.');
+        setError('Sign in with a training account before scheduling.');
         return;
       }
       const sessionType = workType || clientWorkType(client);
@@ -278,9 +274,8 @@ export default function TrainingCalendar() {
         <div>
           <h2 className="text-lg font-semibold">Training calendar</h2>
           <p className="text-sm text-slate-500">
-            View every trainer’s sessions and status, or open one person’s calendar. New sessions still default to you
-            unless you pick someone else. Scheduling adds the lead as a Google Calendar guest so they get the invitation
-            email.
+            View every trainer’s sessions and status, or open one person’s calendar. New sessions are scheduled on your
+            calendar. Scheduling adds the lead as a Google Calendar guest so they get the invitation email.
           </p>
           <p className="mt-1 text-xs text-slate-500">
             {viewEmail === ALL_TRAINERS
@@ -321,17 +316,6 @@ export default function TrainingCalendar() {
               value={viewEmail}
               onChange={setViewEmail}
               team={team}
-              currentEmail={user?.email}
-            />
-          </div>
-          <div className="min-w-[220px]">
-            <TrainerSelect
-              compact
-              allowEmpty={false}
-              label="Schedule as"
-              value={trainerEmail}
-              onChange={setTrainerEmail}
-              team={privileges.canScheduleForOthers ? team : team.filter((member) => sameEmail(member.email, user?.email))}
               currentEmail={user?.email}
             />
           </div>
