@@ -419,6 +419,7 @@ export const SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets',
   'https://www.googleapis.com/auth/drive.metadata.readonly',
   'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/gmail.send',
 ].join(' ');
 
 export const DISCOVERY_DOCS = [

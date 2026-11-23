@@ -455,6 +455,13 @@ export const mockPatchCalendarEvent = async (eventId, { start, end }) => ({
   end,
 });
 
+export const mockSendMail = async ({ to, subject, body }) => ({
+  id: createId('MAIL'),
+  to,
+  subject,
+  body,
+});
+
 export const mockSessionsForTrainerOnDate = async (trainerEmail, date) => {
   const sessions = await mockGetObjects(SHEETS.SESSIONS);
   return sessions.filter(

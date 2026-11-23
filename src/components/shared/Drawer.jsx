@@ -27,34 +27,37 @@ export default function Drawer({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={toggle}
-        title={open ? `Close ${edgeLabel}` : `Open ${edgeLabel}`}
-        className="fixed top-1/2 right-0 z-50 flex w-8 -translate-y-1/2 flex-col items-center justify-center gap-0.5 rounded-l-md border border-r-0 border-slate-300 bg-slate-900 py-2 text-white shadow-md transition-colors duration-200 hover:bg-slate-800"
-      >
-        {open ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
-        <span className="text-[10px] font-medium tracking-wide" style={{ writingMode: 'vertical-rl' }}>
-          {edgeLabel}
-        </span>
-        {edgeBadge ? (
-          <span className="min-w-4 rounded-full bg-rose-500 px-0.5 text-[9px] font-semibold leading-4">
-            {edgeBadge}
+      {open ? null : (
+        <button
+          type="button"
+          onClick={toggle}
+          title={`Open ${edgeLabel}`}
+          className="fixed top-1/2 right-0 z-50 flex w-8 -translate-y-1/2 flex-col items-center justify-center gap-0.5 rounded-l-md border border-r-0 border-slate-300 bg-slate-900 py-2 text-white shadow-md transition-colors duration-200 hover:bg-slate-800"
+        >
+          <ChevronLeft size={12} />
+          <span className="text-[10px] font-medium tracking-wide" style={{ writingMode: 'vertical-rl' }}>
+            {edgeLabel}
           </span>
-        ) : null}
-      </button>
+          {edgeBadge ? (
+            <span className="min-w-4 rounded-full bg-rose-500 px-0.5 text-[9px] font-semibold leading-4">
+              {edgeBadge}
+            </span>
+          ) : null}
+        </button>
+      )}
 
-      <div className={`fixed inset-0 z-40 ${open ? '' : 'pointer-events-none'}`}>
+      <div className={`fixed inset-0 z-40 overflow-hidden ${open ? '' : 'pointer-events-none'}`}>
         <button
           type="button"
           aria-label="Close drawer"
           tabIndex={open ? 0 : -1}
           className={`absolute inset-0 bg-slate-900/40 transition-opacity duration-300 ease-out ${
-            open ? 'pointer-events-auto opacity-100' : 'opacity-0'
+            open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
           }`}
           onClick={onClose}
         />
         <aside
+          aria-hidden={open ? undefined : true}
           className={`absolute inset-y-0 right-0 flex w-full flex-col bg-slate-50 shadow-2xl transition-transform duration-300 ease-out ${
             wide ? 'max-w-[760px]' : 'max-w-md'
           } ${open ? 'translate-x-0' : 'translate-x-full'}`}

@@ -9,6 +9,7 @@ import {
   todayInput,
 } from '../../utils/constants';
 import LeaveRescheduleModal from './LeaveRescheduleModal';
+import { sendLeaveDecisionEmail } from '../../services/mailService';
 
 export default function WorkLogForm() {
   const { user, privileges } = useAuth();
@@ -21,6 +22,7 @@ export default function WorkLogForm() {
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   const visibleLogs = useMemo(() => {
     const rows = privileges.canViewAllWorklogs
@@ -44,11 +46,26 @@ export default function WorkLogForm() {
   const reviewLeave = async (log, status) => {
     setBusy(true);
     setError('');
+    setNotice('');
     try {
       await updateWorklog(log.Log_ID, {
         Leave_Status: status,
         Reviewed_By: user?.email || user?.name || '',
       });
+      try {
+        await sendLeaveDecisionEmail({
+          to: log.User_Email,
+          status,
+          date: log.Date,
+          reason: log.Leave_Reason,
+          reviewedBy: user?.name || user?.email,
+        });
+        setNotice(`Leave ${status.toLowerCase()}. Email sent to ${log.User_Email}.`);
+      } catch (mailError) {
+        setError(
+          `Leave ${status.toLowerCase()}, but the email could not be sent: ${mailError.message}`
+        );
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -97,6 +114,7 @@ export default function WorkLogForm() {
           </p>
         ) : null}
         {error ? <p className="mt-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
+        {notice ? <p className="mt-3 rounded bg-emerald-50 p-2 text-sm text-emerald-800">{notice}</p> : null}
 
         <label className="mt-4 block text-sm">
           Date
@@ -172,6 +190,7 @@ export default function WorkLogForm() {
           ) : null}
         </div>
 
+        {notice ? <p className="mt-3 rounded bg-emerald-50 p-2 text-sm text-emerald-800">{notice}</p> : null}
         {privileges.canReviewLeave && pendingLeaves.length ? (
           <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-3">
             <p className="text-sm font-medium text-amber-900">Pending leave ({pendingLeaves.length})</p>

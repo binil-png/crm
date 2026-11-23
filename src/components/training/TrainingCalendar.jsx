@@ -181,6 +181,7 @@ export default function TrainingCalendar() {
     if (viewEmail && viewEmail !== ALL_TRAINERS && !sameEmail(session.Trainer_Email, viewEmail)) {
       return false;
     }
+    if (typeFilter !== 'All' && sessionWorkType(session) !== typeFilter) return false;
     const start = parseSheetDate(session.Start_Time);
     if (!start) return false;
     const weekEnd = addDays(weekStart, DAY_COUNT);
@@ -299,7 +300,14 @@ export default function TrainingCalendar() {
               currentEmail={user?.email}
             />
           </div>
-          <WorkTypeSelect value={workType} onChange={setWorkType} compact />
+          <WorkTypeSelect
+            value={workType}
+            onChange={(type) => {
+              setWorkType(type);
+              setTypeFilter(type);
+            }}
+            compact
+          />
           <label className="text-sm text-slate-600">
             Duration
             <select
@@ -338,7 +346,11 @@ export default function TrainingCalendar() {
             <select
               className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800"
               value={typeFilter}
-              onChange={(event) => setTypeFilter(event.target.value)}
+              onChange={(event) => {
+                const next = event.target.value;
+                setTypeFilter(next);
+                if (next !== 'All') setWorkType(next);
+              }}
             >
               <option value="All">All types</option>
               {WORK_TYPES.map((item) => (

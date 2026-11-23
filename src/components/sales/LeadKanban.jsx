@@ -28,10 +28,8 @@ import {
 } from '../../utils/constants';
 import LeadModal from './LeadModal';
 import SalesCloseModal from './SalesCloseModal';
-import CallAlerts from './CallAlerts';
 import CallScheduleSidebar from './CallScheduleSidebar';
 import TrainingDropBox from './TrainingDropBox';
-import SalesTrainingProgress from './SalesTrainingProgress';
 import ScheduleDateTimeFields from './ScheduleDateTimeFields';
 import Modal from '../shared/Modal';
 import Drawer from '../shared/Drawer';
@@ -245,7 +243,6 @@ export default function LeadKanban() {
         </label>
       </div>
 
-      <CallAlerts leads={leads} now={now} onSelect={openLead} />
       {tableError ? <p className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{tableError}</p> : null}
 
       <div className="min-w-0">
@@ -392,9 +389,6 @@ export default function LeadKanban() {
         edgeLabel="Call schedules and training"
         edgeBadge={overdueCount + readyToPassCount}
       >
-        <div className="mb-4">
-          <SalesTrainingProgress ribbon />
-        </div>
         <div className="grid items-start gap-4 md:grid-cols-2">
           {privileges.canPassToTraining ? <TrainingDropBox leads={leads} /> : null}
           <CallScheduleSidebar
