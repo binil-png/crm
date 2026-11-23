@@ -152,24 +152,6 @@ export default function LeadKanban() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setDrawerOpen(true)}
-            className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
-          >
-            <PanelRight size={16} />
-            Call schedules and training
-            {overdueCount ? (
-              <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[11px] font-medium text-rose-800">
-                {overdueCount} overdue
-              </span>
-            ) : null}
-            {readyToPassCount ? (
-              <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800">
-                {readyToPassCount} to pass
-              </span>
-            ) : null}
-          </button>
           {privileges.canAddLead ? (
             <button
               type="button"
