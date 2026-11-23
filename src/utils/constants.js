@@ -11,6 +11,33 @@ export const ROLE_LABELS = {
 export const USER_TYPES = ['Sales', 'Technical support'];
 export const USER_ROLES = ['Team member', 'Team lead', 'Admin'];
 
+export const DEMO_ACCOUNTS = [
+  {
+    name: 'Admin User',
+    email: 'admin@example.com',
+    userType: 'Sales',
+    userRole: 'Admin',
+    label: 'Admin',
+    description: 'Sales and training workspaces, users, and leave approval.',
+  },
+  {
+    name: 'Sales Person',
+    email: 'sales@example.com',
+    userType: 'Sales',
+    userRole: 'Team member',
+    label: 'Sales person',
+    description: 'Leads, call schedules, and passing clients to training.',
+  },
+  {
+    name: 'Training Person',
+    email: 'training@example.com',
+    userType: 'Technical support',
+    userRole: 'Team member',
+    label: 'Training person',
+    description: 'Calendar, sessions, assigned clients, and work log.',
+  },
+];
+
 export const normalizeUserType = (value) => {
   const text = String(value || '').trim().toLowerCase();
   if (text.includes('technical') || text.includes('training') || text.includes('support')) return 'Technical support';
@@ -260,9 +287,8 @@ export const LANGUAGES = ['English', 'Hindi', 'Malayalam', 'Tamil', 'Kannada', '
 export const INTERACTION_CHANNELS = ['Comment', 'Call', 'Whatsapp', 'Mail'];
 
 export const TRAINING_TEAM = [
-  { name: 'Demo Trainer', email: 'demo@example.com' },
-  { name: 'Anjali Kumar', email: 'anjali.training@example.com' },
-  { name: 'Ravi Menon', email: 'ravi.training@example.com' },
+  { name: 'Training Person', email: 'training@example.com' },
+  { name: 'Admin User', email: 'admin@example.com' },
 ];
 
 export const normalizeCalendarId = (value, email = '') => {
@@ -414,7 +440,7 @@ export const STORAGE_KEYS = {
   TRAINING_SPREADSHEET_ID: 'crm_training_spreadsheet_id',
   CALENDAR_ID: 'crm_calendar_id',
   DEMO_MODE: 'crm_demo_mode',
-  MOCK_DB: 'crm_mock_db_v7',
+  MOCK_DB: 'crm_mock_db_v8',
   DIRECTORY: 'crm_directory_user',
 };
 

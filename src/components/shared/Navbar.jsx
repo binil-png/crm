@@ -1,7 +1,7 @@
 import { LogOut, RefreshCw, UserRound } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
-import { ROLES, ROLE_LABELS } from '../../utils/constants';
+import { DEMO_ACCOUNTS, ROLES, ROLE_LABELS } from '../../utils/constants';
 import { isDemoMode } from '../../services/googleApi';
 import useNow from '../../hooks/useNow';
 import PushPrompt from './PushPrompt';
@@ -16,7 +16,7 @@ const formatSynced = (at, now) => {
 };
 
 export default function Navbar() {
-  const { user, role, userType, userRole, privileges, isRegistered, switchRole, logout, registration } = useAuth();
+  const { user, role, userType, userRole, privileges, isRegistered, switchRole, logout, registration, enterLocalDemo } = useAuth();
   const { refreshAll, loading, syncing, lastSyncedAt } = useCrmStore();
   const now = useNow(10000);
 
@@ -49,6 +49,25 @@ export default function Navbar() {
               <p className="leading-tight text-slate-500">
                 Account <span className="font-medium text-emerald-700">Registered</span>
               </p>
+            ) : null}
+            {isDemoMode() ? (
+              <label className="leading-tight text-slate-500">
+                User
+                <select
+                  className="ml-1 rounded border border-slate-200 bg-white px-2 py-1 font-medium text-slate-800"
+                  value={user?.email || DEMO_ACCOUNTS[0].email}
+                  onChange={(event) => {
+                    const account = DEMO_ACCOUNTS.find((item) => item.email === event.target.value);
+                    if (account) enterLocalDemo({ account });
+                  }}
+                >
+                  {DEMO_ACCOUNTS.map((account) => (
+                    <option key={account.email} value={account.email}>
+                      {account.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             ) : null}
             {privileges.canSwitchModule ? (
               <div className="flex rounded border border-slate-200 p-1">

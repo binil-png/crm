@@ -1,4 +1,5 @@
 import {
+  DEMO_ACCOUNTS,
   HEADERS,
   INTERACTION_HEADERS,
   LEAD_HEADERS,
@@ -220,7 +221,7 @@ const seedDb = () => {
           Lead_ID: 'ANWAR#8',
           Client_Name: 'Dr Karthi',
           Contact_Email: 'drkaarent@gmail.com',
-          Assigned_Trainer: 'demo@example.com',
+          Assigned_Trainer: 'training@example.com',
           Training_Status: 'Ongoing',
           Completed_Date: '',
           Work_Type: 'Training',
@@ -238,7 +239,7 @@ const seedDb = () => {
           Session_Title: 'Product onboarding',
           Start_Time: start.toISOString(),
           End_Time: end.toISOString(),
-          Trainer_Email: 'demo@example.com',
+          Trainer_Email: 'training@example.com',
           Status: 'Scheduled',
           Session_Type: 'Training',
           Cancel_Reason: '',
@@ -252,7 +253,7 @@ const seedDb = () => {
       objectToRow(
         {
           Log_ID: createId('WL'),
-          User_Email: 'anjali.training@example.com',
+          User_Email: 'training@example.com',
           Date: todayInput(),
           Entry_Type: 'Work Log',
           Work_Summary: 'Completed onboarding session for Dr Karthi.',
@@ -266,7 +267,7 @@ const seedDb = () => {
       objectToRow(
         {
           Log_ID: createId('WL'),
-          User_Email: 'meera.training@example.com',
+          User_Email: 'training@example.com',
           Date: todayInput(),
           Entry_Type: 'Leave',
           Work_Summary: '',
@@ -280,65 +281,19 @@ const seedDb = () => {
     ],
     [SHEETS.USERS]: [
       HEADERS[SHEETS.USERS],
-      objectToRow(
-        {
-          Username: 'Demo User',
-          Email: 'demo@example.com',
-          'User Type': 'Sales',
-          'User Role': 'Admin',
-          'Calendar ID': 'primary',
-          'Last Login': '',
-          Registered: 'Yes',
-        },
-        HEADERS[SHEETS.USERS]
-      ),
-      objectToRow(
-        {
-          Username: 'Anjali Kumar',
-          Email: 'anjali.training@example.com',
-          'User Type': 'Technical support',
-          'User Role': 'Team member',
-          'Calendar ID': 'primary',
-          'Last Login': '',
-          Registered: 'Yes',
-        },
-        HEADERS[SHEETS.USERS]
-      ),
-      objectToRow(
-        {
-          Username: 'Meera Nair',
-          Email: 'meera.training@example.com',
-          'User Type': 'Technical support',
-          'User Role': 'Team lead',
-          'Calendar ID': 'primary',
-          'Last Login': '',
-          Registered: 'Yes',
-        },
-        HEADERS[SHEETS.USERS]
-      ),
-      objectToRow(
-        {
-          Username: 'Priya Shah',
-          Email: 'priya.sales@example.com',
-          'User Type': 'Sales',
-          'User Role': 'Team member',
-          'Calendar ID': 'primary',
-          'Last Login': '',
-          Registered: 'Yes',
-        },
-        HEADERS[SHEETS.USERS]
-      ),
-      objectToRow(
-        {
-          Username: 'Arun Sales',
-          Email: 'arun.sales@example.com',
-          'User Type': 'Sales',
-          'User Role': 'Team lead',
-          'Calendar ID': 'primary',
-          'Last Login': '',
-          Registered: 'Yes',
-        },
-        HEADERS[SHEETS.USERS]
+      ...DEMO_ACCOUNTS.map((account) =>
+        objectToRow(
+          {
+            Username: account.name,
+            Email: account.email,
+            'User Type': account.userType,
+            'User Role': account.userRole,
+            'Calendar ID': 'primary',
+            'Last Login': '',
+            Registered: 'Yes',
+          },
+          HEADERS[SHEETS.USERS]
+        )
       ),
     ],
   };

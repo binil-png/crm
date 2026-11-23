@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { CalendarDays, Database, Sheet } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { isDemoMode, refreshAppSheetsStatus, resetConfig } from '../../services/googleApi';
+import { DEMO_ACCOUNTS, STORAGE_KEYS } from '../../utils/constants';
 
 export default function GoogleLoginButton() {
   const { login, enterLocalDemo, busy, error } = useAuth();
@@ -55,23 +56,33 @@ export default function GoogleLoginButton() {
               Sheets and Calendar are not used.
             </p>
             <p className="mt-2 text-xs text-slate-500">
-              Signs in as Demo User (demo@example.com), Admin. Data key: crm_mock_db_v7.
+              Choose a user. Privileges follow User Type and User Role. Data key: {STORAGE_KEYS.MOCK_DB}.
             </p>
+            <div className="mt-4 grid gap-2">
+              {DEMO_ACCOUNTS.map((account) => (
+                <button
+                  key={account.email}
+                  type="button"
+                  onClick={() => enterLocalDemo({ account })}
+                  disabled={busy}
+                  className="rounded border border-slate-300 bg-white px-3 py-2 text-left disabled:opacity-60"
+                >
+                  <span className="block text-sm font-medium text-slate-900">
+                    {busy && demo ? 'Opening local workspace…' : `Start as ${account.label}`}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-slate-500">
+                    {account.userType} · {account.userRole} · {account.email}
+                  </span>
+                </button>
+              ))}
+            </div>
             <button
               type="button"
-              onClick={() => enterLocalDemo()}
-              disabled={busy}
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded border border-slate-300 bg-white px-4 py-2 text-slate-900 disabled:opacity-60"
-            >
-              {busy && demo ? 'Opening local workspace…' : 'Start local setup'}
-            </button>
-            <button
-              type="button"
-              onClick={() => enterLocalDemo({ resetData: true })}
+              onClick={() => enterLocalDemo({ resetData: true, account: DEMO_ACCOUNTS[0] })}
               disabled={busy}
               className="mt-2 text-xs text-slate-500 underline"
             >
-              Reset sample data and start local setup
+              Reset sample data and start as Admin
             </button>
           </div>
         </div>

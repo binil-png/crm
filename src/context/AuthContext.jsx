@@ -13,6 +13,7 @@ import { resetMockDb } from '../services/mockBackend';
 import { ensureWorkbook, isPermissionError, upsertDirectoryUser } from '../services/sheetsService';
 import { useCrmStore } from '../store/crmStore';
 import {
+  DEMO_ACCOUNTS,
   ROLE_LABELS,
   ROLES,
   SCOPES,
@@ -90,7 +91,16 @@ export function AuthProvider({ children }) {
       try {
         if (isDemoMode() && user) {
           await ensureWorkbook();
-          await resolveDirectory(user);
+          const account =
+            DEMO_ACCOUNTS.find(
+              (item) => String(item.email).toLowerCase() === String(user.email || '').toLowerCase()
+            ) || DEMO_ACCOUNTS[0];
+          persistUser(
+            { name: account.name, email: account.email, picture: user.picture || '', registered: true },
+            'demo-token',
+            86400
+          );
+          await resolveDirectory(account);
           return;
         }
         const token = sessionStorage.getItem(STORAGE_KEYS.TOKEN);
@@ -203,15 +213,16 @@ export function AuthProvider({ children }) {
     onError: () => setError('Google sign-in was cancelled or failed.'),
   });
 
-  const enterLocalDemo = async ({ resetData = false } = {}) => {
+  const enterLocalDemo = async ({ resetData = false, account } = {}) => {
     setError('');
     setBusy(true);
     try {
       enableLocalDemo();
       if (resetData) resetMockDb();
+      const selected = account || DEMO_ACCOUNTS[0];
       const profile = {
-        name: 'Demo User',
-        email: 'demo@example.com',
+        name: selected.name,
+        email: selected.email,
         picture: '',
       };
       await finishLogin(profile, 'demo-token', 86400);
