@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
-import { INTERACTION_CHANNELS, appendStageComment, formatDateTime } from '../../utils/constants';
+import { INTERACTION_CHANNELS, appendStageComment, formatDateTime, parseStageComments } from '../../utils/constants';
 
 export default function CommunicationPanel() {
-  const { user } = useAuth();
+  const { user, privileges } = useAuth();
   const { leads, messages, addMessage, updateLead } = useCrmStore();
   const [leadKey, setLeadKey] = useState('');
+  const [staff, setStaff] = useState('All');
   const [channel, setChannel] = useState('Comment');
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
@@ -14,12 +15,37 @@ export default function CommunicationPanel() {
 
   const selected = leads.find((lead) => `${lead._sheet}#${lead['Sl No']}` === leadKey);
 
-  const thread = useMemo(() => {
-    const rows = selected
-      ? messages.filter((item) => item['Client Name'] === selected['Customer Name'])
-      : messages;
-    return [...rows].sort((a, b) => String(b.Timestamp).localeCompare(String(a.Timestamp)));
-  }, [messages, selected]);
+  const history = useMemo(() => {
+    const fromSheet = messages.map((item) => ({ ...item, _kind: 'sheet' }));
+    const fromLeads = leads.flatMap((lead) =>
+      parseStageComments(lead.Comments).map((item, index) => ({
+        Timestamp: lead.Date || '',
+        'Sheet Name': lead._sheet,
+        'Client Name': lead['Customer Name'],
+        Executive: lead.Executive || '',
+        Channel: 'Lead comment',
+        Notes: item.message || item.raw,
+        _kind: 'lead-comment',
+        _key: `${lead._sheet}#${lead['Sl No']}-c-${item.num || index}`,
+      }))
+    );
+    const rows = [...fromSheet, ...fromLeads];
+    const clientName = selected?.['Customer Name'];
+    return rows
+      .filter((item) => !clientName || item['Client Name'] === clientName)
+      .filter((item) => staff === 'All' || String(item.Executive || '').trim() === staff)
+      .sort((a, b) => String(b.Timestamp).localeCompare(String(a.Timestamp)));
+  }, [messages, leads, selected, staff]);
+
+  const staffNames = useMemo(
+    () =>
+      [
+        ...new Set(
+          [...messages, ...leads].map((item) => String(item.Executive || '').trim()).filter(Boolean)
+        ),
+      ].sort((a, b) => a.localeCompare(b)),
+    [messages, leads]
+  );
 
   const submit = async (event) => {
     event.preventDefault();
@@ -33,7 +59,7 @@ export default function CommunicationPanel() {
       await addMessage({
         'Sheet Name': selected._sheet,
         'Client Name': selected['Customer Name'],
-        Executive: selected.Executive || user?.name || '',
+        Executive: user?.name || user?.email || selected.Executive || '',
         Channel: channel,
         Notes: notes.trim(),
         'Scheduled Date': selected['Scheduled Date'] || '',
@@ -53,7 +79,9 @@ export default function CommunicationPanel() {
     <section className="rounded-lg border border-slate-200 bg-white p-4">
       <h2 className="text-lg font-semibold">Interaction History</h2>
       <p className="text-sm text-slate-500">
-        Posts to the Interaction History sheet and appends a stage note on the lead Comments column.
+        {privileges.canViewAllInteractions
+          ? 'All staff records: Interaction History posts plus comments, scheduled calls and status notes from every lead.'
+          : 'Posts to Interaction History and appends a stage note on the lead Comments column.'}
       </p>
 
       <form onSubmit={submit} className="mt-4 grid gap-3 md:grid-cols-2">
@@ -64,10 +92,25 @@ export default function CommunicationPanel() {
             value={leadKey}
             onChange={(e) => setLeadKey(e.target.value)}
           >
-            <option value="">All / select customer</option>
+            <option value="">All customers</option>
             {leads.map((lead) => (
               <option key={`${lead._sheet}#${lead['Sl No']}`} value={`${lead._sheet}#${lead['Sl No']}`}>
                 {lead['Customer Name']} · {lead._sheet}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-sm">
+          Logged by
+          <select
+            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+            value={staff}
+            onChange={(e) => setStaff(e.target.value)}
+          >
+            <option value="All">All staff</option>
+            {staffNames.map((name) => (
+              <option key={name} value={name}>
+                {name}
               </option>
             ))}
           </select>
@@ -100,14 +143,14 @@ export default function CommunicationPanel() {
       </form>
 
       <div className="mt-5 space-y-3">
-        {thread.length === 0 ? <p className="text-sm text-slate-500">No interactions yet.</p> : null}
-        {thread.map((item, index) => (
-          <article key={`${item.Timestamp}-${index}`} className="rounded border border-slate-100 p-3">
+        {history.length === 0 ? <p className="text-sm text-slate-500">No interactions yet.</p> : null}
+        {history.map((item, index) => (
+          <article key={item._key || `${item.Timestamp}-${item.Notes}-${index}`} className="rounded border border-slate-100 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
               <span>
-                {item.Channel} · {item.Executive} · {item['Sheet Name']} · {item['Client Name']}
+                {item.Channel} · {item.Executive || 'Staff'} · {item['Sheet Name']} · {item['Client Name']}
               </span>
-              <span>{formatDateTime(item.Timestamp)}</span>
+              <span>{item.Timestamp ? formatDateTime(item.Timestamp) : ''}</span>
             </div>
             <p className="mt-1 text-sm">{item.Notes}</p>
           </article>

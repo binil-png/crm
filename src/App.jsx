@@ -12,6 +12,7 @@ import TrainingCalendar from './components/training/TrainingCalendar';
 import SessionList from './components/training/SessionList';
 import WorkLogForm from './components/worklog/WorkLogForm';
 import UsersPanel from './components/admin/UsersPanel';
+import SalesTrainingProgress from './components/sales/SalesTrainingProgress';
 
 export default function App() {
   const { isAuthenticated, booting, role, privileges, error } = useAuth();
@@ -44,7 +45,9 @@ export default function App() {
 
   const salesTabs = [
     { id: 'main', label: 'Leads' },
+    { id: 'training-progress', label: 'Client training' },
     { id: 'messages', label: 'Interaction History' },
+    ...(privileges.admin ? [{ id: 'worklog', label: 'Work log / Leave' }] : []),
   ];
   const trainingTabs = [
     { id: 'main', label: 'Calendar' },
@@ -82,6 +85,7 @@ export default function App() {
         {loading ? <p className="mb-4 text-sm text-slate-500">Syncing Google data…</p> : null}
 
         {role === ROLES.SALES && tab === 'main' ? <LeadKanban /> : null}
+        {role === ROLES.SALES && tab === 'training-progress' ? <SalesTrainingProgress /> : null}
         {role === ROLES.TRAINING && tab === 'main' ? <TrainingCalendar /> : null}
         {role === ROLES.TRAINING && tab === 'clients' ? <ClientList /> : null}
         {role === ROLES.TRAINING && tab === 'sessions' ? (
@@ -90,7 +94,7 @@ export default function App() {
             <SessionList />
           </section>
         ) : null}
-        {role === ROLES.TRAINING && tab === 'worklog' ? <WorkLogForm /> : null}
+        {(role === ROLES.TRAINING || privileges.admin) && tab === 'worklog' ? <WorkLogForm /> : null}
         {tab === 'messages' ? <CommunicationPanel /> : null}
         {privileges.canViewUsers && tab === 'users' ? <UsersPanel /> : null}
       </main>

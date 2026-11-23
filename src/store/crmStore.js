@@ -13,6 +13,7 @@ import {
   nowIso,
   findClientForLead,
   findLeadForClient,
+  removeStageComment,
   todayInput,
   trainingLeadId,
 } from '../utils/constants';
@@ -142,6 +143,21 @@ export const useCrmStore = create((set, get) => ({
       emails: [currentUserEmail()].filter(Boolean),
     }).catch((error) => console.warn(error));
     return get().updateLead(lead, { 'Scheduled Date': scheduled, Comments: comments });
+  },
+
+  completeCall: async (lead, { status, note } = {}) => {
+    const comments = appendStageComment(
+      lead.Comments,
+      note || `Call completed on ${formatDdMmYyyyHm(new Date())}`
+    );
+    const patch = { Comments: comments };
+    if (status) patch.Status = status;
+    return get().updateLead(lead, patch);
+  },
+
+  deleteLeadComment: async (lead, num) => {
+    const comments = removeStageComment(lead.Comments, num);
+    return get().updateLead(lead, { Comments: comments });
   },
 
   closeLead: async (lead, { outcome, comment, passToTraining = false }) => {
@@ -366,6 +382,8 @@ export const useCrmStore = create((set, get) => ({
       Work_Summary: payload.Work_Summary || '',
       Leave_Reason: payload.Leave_Reason || '',
       Rescheduled_Sessions: payload.Rescheduled_Sessions || '',
+      Leave_Status: payload.Leave_Status || (payload.Entry_Type === 'Leave' ? 'Pending' : ''),
+      Reviewed_By: payload.Reviewed_By || '',
     };
     await sheets.addWorklog(log);
     set({ worklogs: [log, ...get().worklogs] });
@@ -417,6 +435,14 @@ export const useCrmStore = create((set, get) => ({
 
     set({ sessions });
     return log;
+  },
+
+  updateWorklog: async (logId, patch) => {
+    const next = await sheets.updateWorklog(logId, patch);
+    set({
+      worklogs: get().worklogs.map((item) => (item.Log_ID === logId ? next : item)),
+    });
+    return next;
   },
 
   rememberDirectoryUser: (row) => {

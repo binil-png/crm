@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
 import { createCalendarEvent } from '../../services/calendarService';
@@ -29,7 +30,7 @@ import ScheduleDateTimeFields from './ScheduleDateTimeFields';
 
 export default function LeadModal({ lead, onClose, onCloseDeal, mode = 'full' }) {
   const { user, privileges } = useAuth();
-  const { updateLead, passToTraining, scheduleCall, clients } = useCrmStore();
+  const { updateLead, passToTraining, scheduleCall, completeCall, deleteLeadComment, clients } = useCrmStore();
   const commentsOnly = mode === 'comments';
   const [form, setForm] = useState({ ...lead });
   const [stageNote, setStageNote] = useState('');
@@ -156,9 +157,31 @@ export default function LeadModal({ lead, onClose, onCloseDeal, mode = 'full' })
               <p className="text-sm text-slate-500">No comments yet.</p>
             ) : (
               parseStageComments(form.Comments).map((item) => (
-                <p key={item.num} className="rounded bg-slate-50 px-2 py-1 text-sm">
-                  {item.raw}
-                </p>
+                <div key={item.num} className="flex items-start gap-2 rounded bg-slate-50 px-2 py-1">
+                  <p className="flex-1 text-sm">{item.raw}</p>
+                  {privileges.canEditLead ? (
+                    <button
+                      type="button"
+                      title="Delete comment"
+                      className="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-700"
+                      disabled={busy}
+                      onClick={async () => {
+                        setBusy(true);
+                        setError('');
+                        try {
+                          const saved = await deleteLeadComment(form, item.num);
+                          setForm(saved);
+                        } catch (err) {
+                          setError(err.message);
+                        } finally {
+                          setBusy(false);
+                        }
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  ) : null}
+                </div>
               ))
             )}
           </div>
@@ -205,9 +228,32 @@ export default function LeadModal({ lead, onClose, onCloseDeal, mode = 'full' })
     <Modal title={`${form['Customer Name']} · ${form._sheet} #${form['Sl No']}`} onClose={onClose} wide>
       {error ? <p className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
       {scheduleState === 'overdue' ? (
-        <p className="mb-3 rounded border border-rose-200 bg-rose-50 p-2 text-sm text-rose-800">
-          Overdue: this call was scheduled for {scheduleAt.toLocaleString()} ({formatScheduleRelative(scheduleAt)}).
-        </p>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded border border-rose-200 bg-rose-50 p-2 text-sm text-rose-800">
+          <p>
+            Overdue: this call was scheduled for {scheduleAt.toLocaleString()} ({formatScheduleRelative(scheduleAt)}).
+          </p>
+          {privileges.canEditLead ? (
+            <button
+              type="button"
+              disabled={busy}
+              className="rounded bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+              onClick={async () => {
+                setBusy(true);
+                setError('');
+                try {
+                  const saved = await completeCall(form);
+                  setForm(saved);
+                } catch (err) {
+                  setError(err.message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Mark call done
+            </button>
+          ) : null}
+        </div>
       ) : null}
       {scheduleState === 'soon' ? (
         <p className="mb-3 rounded border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900">

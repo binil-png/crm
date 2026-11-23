@@ -151,7 +151,7 @@ export default function TrainingDropBox({ leads }) {
         {passed.length === 0 ? (
           <p className="text-xs text-slate-400">No completed leads have been passed yet.</p>
         ) : (
-          <div className="max-h-[240px] space-y-2 overflow-auto">
+          <div className="space-y-2">
             {passed.map((client) => (
               <article key={client.Client_ID} className="rounded-lg border border-sky-100 bg-white p-2">
                 <div className="flex items-start justify-between gap-2">

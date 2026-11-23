@@ -27,8 +27,8 @@ phases:
       - echo "Starting the post-build phase..."
       - cd dist
       - ls -ltrh
-      - aws s3 sync . s3://${target_bucket}/${environment} --exclude "*.html" --cache-control "max-age=31536000, public"
-      - aws s3 cp index.html s3://${target_bucket}/${environment}/index.html --cache-control "no-cache, no-store, must-revalidate"
+      - aws s3 sync . s3://${target_bucket} --exclude "*.html" --cache-control "max-age=31536000, public"
+      - aws s3 cp index.html s3://${target_bucket}/index.html --cache-control "no-cache, no-store, must-revalidate"
       - aws configure set preview.cloudfront true
       - aws cloudfront create-invalidation --distribution-id "$distribution_id" --paths "/*" || echo "Failed to invalidate $distribution_id";
       - echo "Post-build phase completed."

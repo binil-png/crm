@@ -11,6 +11,7 @@ import {
   objectToRow,
   rowsToObjects,
   sameDay,
+  todayInput,
 } from '../utils/constants';
 
 const emptyDb = () => ({
@@ -194,6 +195,8 @@ const seedDb = () => {
     [SHEETS.INTERACTIONS]: [
       INTERACTION_HEADERS,
       ['12/09/2026 15:43:38', 'SUNISH', 'Herbal Hub (Dr Ann Maria)', 'Sunish', 'Comment', 'Dermatology clinic', ''],
+      ['13/09/2026 10:12:04', 'ANWAR', 'Dr Karthi', 'Priya Shah', 'Call', 'Follow-up after demo, waiting on clinic confirmation', ''],
+      ['14/09/2026 16:05:11', 'SUNISH', 'Dr Yogesh Kumar', 'Arun Sales', 'WhatsApp', 'Shared customisation checklist with the clinic', ''],
     ],
     [SHEETS.AUDIT]: [HEADERS[SHEETS.AUDIT]],
     [SHEETS.CLIENTS]: [
@@ -244,7 +247,37 @@ const seedDb = () => {
         HEADERS[SHEETS.SESSIONS]
       ),
     ],
-    [SHEETS.LOGS]: [HEADERS[SHEETS.LOGS]],
+    [SHEETS.LOGS]: [
+      HEADERS[SHEETS.LOGS],
+      objectToRow(
+        {
+          Log_ID: createId('WL'),
+          User_Email: 'anjali.training@example.com',
+          Date: todayInput(),
+          Entry_Type: 'Work Log',
+          Work_Summary: 'Completed onboarding session for Dr Karthi.',
+          Leave_Reason: '',
+          Rescheduled_Sessions: '',
+          Leave_Status: '',
+          Reviewed_By: '',
+        },
+        HEADERS[SHEETS.LOGS]
+      ),
+      objectToRow(
+        {
+          Log_ID: createId('WL'),
+          User_Email: 'meera.training@example.com',
+          Date: todayInput(),
+          Entry_Type: 'Leave',
+          Work_Summary: '',
+          Leave_Reason: 'Family function. Sessions already moved to next week.',
+          Rescheduled_Sessions: '',
+          Leave_Status: 'Pending',
+          Reviewed_By: '',
+        },
+        HEADERS[SHEETS.LOGS]
+      ),
+    ],
     [SHEETS.USERS]: [
       HEADERS[SHEETS.USERS],
       objectToRow(

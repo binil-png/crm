@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { GripVertical, Plus } from 'lucide-react';
+import { Check, GripVertical, PanelRight, Plus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
 import useNow from '../../hooks/useNow';
@@ -14,12 +14,14 @@ import {
   appendStageComment,
   findClientForLead,
   formatDdMmYyyy,
+  formatDdMmYyyyHm,
   formatScheduleRelative,
   getCallScheduleState,
   getLeadScheduleAt,
   isCompletedLead,
   leadKey,
   normalizeTrainingStatus,
+  parseSheetDate,
   parseStageComments,
   pipelineColor,
   setCompletedLeadDrag,
@@ -29,14 +31,16 @@ import SalesCloseModal from './SalesCloseModal';
 import CallAlerts from './CallAlerts';
 import CallScheduleSidebar from './CallScheduleSidebar';
 import TrainingDropBox from './TrainingDropBox';
+import SalesTrainingProgress from './SalesTrainingProgress';
 import ScheduleDateTimeFields from './ScheduleDateTimeFields';
 import Modal from '../shared/Modal';
+import Drawer from '../shared/Drawer';
 
 const PAGE_SIZE = 50;
 
 export default function LeadKanban() {
   const { user, privileges } = useAuth();
-  const { leads, leadSheets, createLead, clients, updateLead } = useCrmStore();
+  const { leads, leadSheets, createLead, clients, updateLead, scheduleCall, completeCall } = useCrmStore();
   const now = useNow(15000);
   const [group, setGroup] = useState('All');
   const [status, setStatus] = useState('All');
@@ -50,6 +54,7 @@ export default function LeadKanban() {
   const [creating, setCreating] = useState(false);
   const [statusBusy, setStatusBusy] = useState('');
   const [tableError, setTableError] = useState('');
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const skipRowClick = useRef(false);
 
   const latestLead = (lead) => leads.find((item) => leadKey(item) === leadKey(lead)) || lead;
@@ -63,6 +68,18 @@ export default function LeadKanban() {
     event.stopPropagation();
     setSelected(null);
     setCommentsLead(lead);
+  };
+
+  const markCallDone = async (lead) => {
+    if (!privileges.canEditLead) return;
+    skipRowClick.current = true;
+    setTableError('');
+    try {
+      const saved = await completeCall(lead);
+      setSelected((current) => (current && leadKey(current) === leadKey(saved) ? saved : current));
+    } catch (err) {
+      setTableError(err.message || 'Could not update the call.');
+    }
   };
 
   const changeStatus = async (lead, nextStatus) => {
@@ -113,6 +130,17 @@ export default function LeadKanban() {
   const pages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   const currentPage = Math.min(page, pages - 1);
   const rows = visible.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE);
+  const overdueCount = useMemo(
+    () => leads.filter((lead) => getCallScheduleState(lead, now) === 'overdue').length,
+    [leads, now]
+  );
+  const readyToPassCount = useMemo(
+    () =>
+      privileges.canPassToTraining
+        ? leads.filter((lead) => isCompletedLead(lead) && !findClientForLead(clients, lead)).length
+        : 0,
+    [leads, clients, privileges.canPassToTraining]
+  );
 
   return (
     <section>
@@ -123,16 +151,36 @@ export default function LeadKanban() {
             {visible.length} of {leads.length} rows · columns match the Google Sheet
           </p>
         </div>
-        {privileges.canAddLead ? (
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => setCreating(true)}
-            className="inline-flex items-center gap-1 rounded bg-slate-900 px-3 py-2 text-sm text-white"
+            onClick={() => setDrawerOpen(true)}
+            className="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
           >
-            <Plus size={16} />
-            Add lead
+            <PanelRight size={16} />
+            Call schedules and training
+            {overdueCount ? (
+              <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[11px] font-medium text-rose-800">
+                {overdueCount} overdue
+              </span>
+            ) : null}
+            {readyToPassCount ? (
+              <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800">
+                {readyToPassCount} to pass
+              </span>
+            ) : null}
           </button>
-        ) : null}
+          {privileges.canAddLead ? (
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              className="inline-flex items-center gap-1 rounded bg-slate-900 px-3 py-2 text-sm text-white"
+            >
+              <Plus size={16} />
+              Add lead
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="mb-3 flex flex-wrap gap-2">
@@ -153,62 +201,73 @@ export default function LeadKanban() {
       </div>
 
       <div className="mb-3 grid gap-2 md:grid-cols-4">
-        <input
-          className="rounded border border-slate-300 px-3 py-2 text-sm"
-          placeholder="Search name, phone, email, comments"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setPage(0);
-          }}
-        />
-        <select
-          className="rounded border border-slate-300 px-3 py-2 text-sm"
-          value={sheet}
-          onChange={(e) => {
-            setSheet(e.target.value);
-            setPage(0);
-          }}
-        >
-          <option value="All">All sheets</option>
-          {leadSheets.map((name) => (
-            <option key={name}>{name}</option>
-          ))}
-        </select>
-        <select
-          className="rounded border border-slate-300 px-3 py-2 text-sm"
-          value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
-            setPage(0);
-          }}
-        >
-          <option>All</option>
-          {PIPELINE_STATUSES.map((item) => (
-            <option key={item}>{item}</option>
-          ))}
-        </select>
-        <select
-          className="rounded border border-slate-300 px-3 py-2 text-sm"
-          value={source}
-          onChange={(e) => {
-            setSource(e.target.value);
-            setPage(0);
-          }}
-        >
-          <option>All</option>
-          {sources.map((item) => (
-            <option key={item}>{item}</option>
-          ))}
-        </select>
+        <label className="text-xs font-medium text-slate-600">
+          Search
+          <input
+            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-normal text-slate-800"
+            placeholder="Search name, phone, email, comments"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(0);
+            }}
+          />
+        </label>
+        <label className="text-xs font-medium text-slate-600">
+          Sheet
+          <select
+            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-normal text-slate-800"
+            value={sheet}
+            onChange={(e) => {
+              setSheet(e.target.value);
+              setPage(0);
+            }}
+          >
+            <option value="All">All sheets</option>
+            {leadSheets.map((name) => (
+              <option key={name}>{name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs font-medium text-slate-600">
+          Status
+          <select
+            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-normal text-slate-800"
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value);
+              setPage(0);
+            }}
+          >
+            <option value="All">All statuses</option>
+            {PIPELINE_STATUSES.map((item) => (
+              <option key={item}>{item}</option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs font-medium text-slate-600">
+          Source
+          <select
+            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-normal text-slate-800"
+            value={source}
+            onChange={(e) => {
+              setSource(e.target.value);
+              setPage(0);
+            }}
+          >
+            <option value="All">All sources</option>
+            {sources.map((item) => (
+              <option key={item}>{item}</option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <CallAlerts leads={leads} now={now} onSelect={openLead} />
       {tableError ? <p className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{tableError}</p> : null}
 
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
-      <div>
-      <div className="max-h-[70vh] overflow-auto rounded border border-slate-300 bg-white">
+      <div className="min-w-0">
+      <div className="max-h-[calc(100vh-13rem)] overflow-auto rounded border border-slate-300 bg-white">
         <table className="min-w-[1400px] w-full border-collapse text-left text-sm">
           <thead className="sticky top-0 bg-slate-50 text-xs uppercase text-slate-500">
             <tr>
@@ -257,6 +316,7 @@ export default function LeadKanban() {
                                 onDragStart={(event) => {
                                   skipRowClick.current = true;
                                   setCompletedLeadDrag(event, lead);
+                                  setDrawerOpen(true);
                                 }}
                               >
                                 <GripVertical size={16} />
@@ -278,7 +338,12 @@ export default function LeadKanban() {
                             {header === 'Sheet' ? (
                               <span className="text-xs text-slate-500">{lead._sheet}</span>
                             ) : header === 'Scheduled Date' ? (
-                              <ScheduleStamp lead={lead} now={now} />
+                              <ScheduleStamp
+                                lead={lead}
+                                now={now}
+                                canEdit={privileges.canEditLead}
+                                onComplete={markCallDone}
+                              />
                             ) : header === 'Status' ? (
                               <StatusSelect
                                 lead={lead}
@@ -335,16 +400,34 @@ export default function LeadKanban() {
         </div>
       </div>
       </div>
-      <div className="flex flex-col lg:sticky lg:top-20 lg:max-h-[calc(100vh-5.5rem)] lg:overflow-auto">
-        {privileges.canPassToTraining ? <TrainingDropBox leads={leads} /> : null}
-        <div className="my-3 flex items-center gap-2 px-1" role="separator" aria-label="Call schedule">
-          <span className="h-[2px] flex-1 rounded bg-slate-300" />
-          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Schedule</span>
-          <span className="h-[2px] flex-1 rounded bg-slate-300" />
+
+      <Drawer
+        title="Call schedules and training"
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        onOpen={() => setDrawerOpen(true)}
+        wide
+        edgeLabel="Call schedules and training"
+        edgeBadge={overdueCount + readyToPassCount}
+      >
+        <div className="mb-4">
+          <SalesTrainingProgress ribbon />
         </div>
-        <CallScheduleSidebar leads={leads} now={now} onSelect={openLead} />
-      </div>
-      </div>
+        <div className="grid items-start gap-4 md:grid-cols-2">
+          {privileges.canPassToTraining ? <TrainingDropBox leads={leads} /> : null}
+          <CallScheduleSidebar
+            leads={leads}
+            now={now}
+            onSelect={(lead) => {
+              setDrawerOpen(false);
+              openLead(lead);
+            }}
+            canEdit={privileges.canEditLead}
+            onCompleteCall={markCallDone}
+            onChangeStatus={changeStatus}
+          />
+        </div>
+      </Drawer>
 
       {creating ? (
         <CreateLeadModal
@@ -353,7 +436,19 @@ export default function LeadKanban() {
           executives={executives}
           onClose={() => setCreating(false)}
           onCreate={async (payload) => {
-            await createLead(payload);
+            const { callMinutes, ...leadPayload } = payload;
+            const lead = await createLead({
+              ...leadPayload,
+              Comments: leadPayload.Comments ? appendStageComment('', leadPayload.Comments) : '',
+            });
+            const start = parseSheetDate(leadPayload['Scheduled Date']);
+            if (start) {
+              await scheduleCall(lead, {
+                start,
+                end: new Date(start.getTime() + (Number(callMinutes) || 30) * 60 * 1000),
+                note: `Call scheduled for ${formatDdMmYyyyHm(start)}`,
+              });
+            }
             setCreating(false);
           }}
         />
@@ -428,7 +523,7 @@ function StatusSelect({ lead, busy, trainingClient, canPass, readOnly, onChange 
   );
 }
 
-function ScheduleStamp({ lead, now }) {
+function ScheduleStamp({ lead, now, canEdit, onComplete }) {
   const at = getLeadScheduleAt(lead);
   const state = getCallScheduleState(lead, now);
   if (!lead['Scheduled Date']) return '—';
@@ -437,7 +532,22 @@ function ScheduleStamp({ lead, now }) {
       <p>{at ? formatDdMmYyyy(at) : lead['Scheduled Date']}</p>
       {at ? <p className="text-xs font-medium text-slate-700">{at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p> : null}
       {state === 'overdue' ? (
-        <p className="mt-1 text-[11px] font-medium text-rose-700">Overdue · {formatScheduleRelative(at, now)}</p>
+        <div className="mt-1">
+          <p className="text-[11px] font-medium text-rose-700">Overdue · {formatScheduleRelative(at, now)}</p>
+          {canEdit ? (
+            <button
+              type="button"
+              className="mt-1 inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-0.5 text-[11px] font-medium text-white"
+              onClick={(event) => {
+                event.stopPropagation();
+                onComplete?.(lead);
+              }}
+            >
+              <Check size={11} />
+              Mark call done
+            </button>
+          ) : null}
+        </div>
       ) : null}
       {state === 'soon' ? (
         <p className="mt-1 text-[11px] font-medium text-amber-700">Starts {formatScheduleRelative(at, now)}</p>
@@ -469,6 +579,7 @@ function CreateLeadModal({ user, leadSheets, executives, onClose, onCreate }) {
     Status: 'New',
     Comments: '',
     'Scheduled Date': '',
+    callMinutes: 30,
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -620,10 +731,49 @@ function CreateLeadModal({ user, leadSheets, executives, onClose, onCreate }) {
             onChange={(e) => setForm((prev) => ({ ...prev, Country: e.target.value }))}
           />
         </label>
-        <div className="md:col-span-2">
+        <label className="text-sm">
+          Status
+          <select
+            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+            value={form.Status}
+            onChange={(e) => setForm((prev) => ({ ...prev, Status: e.target.value }))}
+          >
+            {PIPELINE_STATUSES.map((item) => (
+              <option key={item}>{item}</option>
+            ))}
+          </select>
+        </label>
+        <label className="text-sm">
+          Call duration
+          <select
+            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+            value={form.callMinutes}
+            onChange={(e) => setForm((prev) => ({ ...prev, callMinutes: Number(e.target.value) }))}
+          >
+            {[15, 30, 45, 60].map((item) => (
+              <option key={item} value={item}>
+                {item} min
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-sm md:col-span-2">
+          Comments
+          <textarea
+            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+            rows={3}
+            value={form.Comments}
+            onChange={(e) => setForm((prev) => ({ ...prev, Comments: e.target.value }))}
+            placeholder="Add an opening comment"
+          />
+        </label>
+        <div className="md:col-span-2 rounded border border-slate-200 p-3">
+          <p className="mb-2 text-sm font-medium">Schedule call</p>
           <ScheduleDateTimeFields
             value={form['Scheduled Date']}
             onChange={(next) => setForm((prev) => ({ ...prev, 'Scheduled Date': next }))}
+            dateLabel="Call date"
+            timeLabel="Call time"
           />
         </div>
         <button type="submit" disabled={busy} className="md:col-span-2 rounded bg-slate-900 px-4 py-2 text-white">

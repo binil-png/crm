@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
+import { Check, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
 import {
   WORK_TYPES,
-  formatDateTime,
+  formatDdMmYyyyHm,
   listTrainingTeam,
   normalizeTrainingStatus,
   sameEmail,
@@ -99,8 +100,8 @@ export default function SessionList({ clientId, compact = false }) {
                     </span>
                   </td>
                   <td className="px-3 py-2">
-                    {formatDateTime(session.Start_Time)}
-                    <p className="text-xs text-slate-500">to {formatDateTime(session.End_Time)}</p>
+                    {formatDdMmYyyyHm(session.Start_Time)}
+                    <p className="text-xs text-slate-500">to {formatDdMmYyyyHm(session.End_Time)}</p>
                   </td>
                   <td className="px-3 py-2">
                     <p>{trainerName(session.Trainer_Email)}</p>
@@ -116,19 +117,23 @@ export default function SessionList({ clientId, compact = false }) {
                     {session.Status !== 'Completed' &&
                     session.Status !== 'Cancelled' &&
                     (privileges.canManageAnySession || sameEmail(session.Trainer_Email, user?.email)) ? (
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
-                          className="text-xs text-emerald-700"
+                          title="Mark complete"
+                          className="inline-flex items-center gap-1 rounded bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700"
                           onClick={() => completeSession(session)}
                         >
+                          <Check size={12} />
                           Complete
                         </button>
                         <button
                           type="button"
-                          className="text-xs text-rose-700"
+                          title="Cancel session"
+                          className="inline-flex items-center gap-1 rounded bg-rose-600 px-2 py-1 text-xs font-medium text-white hover:bg-rose-700"
                           onClick={() => updateSession(session.Session_ID, { Status: 'Cancelled' })}
                         >
+                          <X size={12} />
                           Cancel
                         </button>
                       </div>

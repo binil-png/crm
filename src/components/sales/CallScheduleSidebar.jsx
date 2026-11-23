@@ -1,4 +1,5 @@
 import {
+  PIPELINE_STATUSES,
   formatScheduleRelative,
   getCallScheduleState,
   getLeadScheduleAt,
@@ -22,7 +23,14 @@ const badge = {
   upcoming: 'bg-sky-100 text-sky-800',
 };
 
-export default function CallScheduleSidebar({ leads, now, onSelect }) {
+export default function CallScheduleSidebar({
+  leads,
+  now,
+  onSelect,
+  onCompleteCall,
+  onChangeStatus,
+  canEdit = false,
+}) {
   const grouped = {
     overdue: [],
     soon: [],
@@ -49,7 +57,7 @@ export default function CallScheduleSidebar({ leads, now, onSelect }) {
         </p>
       </div>
 
-      <div className="max-h-[36vh] space-y-4 overflow-auto">
+      <div className="space-y-4">
         {GROUPS.map((group) => (
           <section key={group.id}>
             <div className="mb-2 flex items-center justify-between">
@@ -63,22 +71,40 @@ export default function CallScheduleSidebar({ leads, now, onSelect }) {
                 {grouped[group.id].map((lead) => {
                   const at = getLeadScheduleAt(lead);
                   return (
-                    <button
+                    <div
                       key={`${lead._sheet}-${lead['Sl No']}`}
-                      type="button"
-                      onClick={() => onSelect(lead)}
                       className={`w-full rounded-lg border px-2.5 py-2 text-left ${tone[group.id]}`}
                     >
-                      <p className="truncate text-sm font-medium">{lead['Customer Name']}</p>
-                      <p className="truncate text-xs text-slate-600">
-                        {lead.Status}
-                        {lead['Contact Number'] ? ` · ${lead['Contact Number']}` : ''}
-                      </p>
-                      <p className="mt-1 text-xs font-medium">
-                        {at ? at.toLocaleString() : '—'}
-                      </p>
-                      <p className="text-[11px] text-slate-500">{formatScheduleRelative(at, now)}</p>
-                    </button>
+                      <button type="button" onClick={() => onSelect(lead)} className="w-full text-left">
+                        <p className="truncate text-sm font-medium">{lead['Customer Name']}</p>
+                        <p className="truncate text-xs text-slate-600">
+                          {lead.Status}
+                          {lead['Contact Number'] ? ` · ${lead['Contact Number']}` : ''}
+                        </p>
+                        <p className="mt-1 text-xs font-medium">{at ? at.toLocaleString() : '—'}</p>
+                        <p className="text-[11px] text-slate-500">{formatScheduleRelative(at, now)}</p>
+                      </button>
+                      {canEdit && group.id === 'overdue' ? (
+                        <div className="mt-2 space-y-2" onClick={(event) => event.stopPropagation()}>
+                          <select
+                            className="w-full rounded border border-rose-200 bg-white px-2 py-1 text-xs"
+                            value={lead.Status || 'New'}
+                            onChange={(event) => onChangeStatus?.(lead, event.target.value)}
+                          >
+                            {PIPELINE_STATUSES.map((item) => (
+                              <option key={item}>{item}</option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="w-full rounded bg-emerald-600 px-2 py-1 text-xs font-medium text-white"
+                            onClick={() => onCompleteCall?.(lead)}
+                          >
+                            Mark call done
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
                   );
                 })}
               </div>

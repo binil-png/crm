@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, GripVertical } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
@@ -100,8 +100,8 @@ const readDragPayload = (event) => {
 };
 
 export default function TrainingCalendar() {
-  const { user, calendarId: myCalendarId, applyDirectory, privileges } = useAuth();
-  const { clients, sessions, users, scheduleSessions, rescheduleSession, updateDirectoryUser } = useCrmStore();
+  const { user, privileges } = useAuth();
+  const { clients, sessions, users, scheduleSessions, rescheduleSession } = useCrmStore();
   const team = useMemo(
     () => listTrainingTeam({ clients, sessions, users, extra: [user?.email], currentEmail: user?.email }),
     [clients, sessions, users, user?.email]
@@ -119,12 +119,6 @@ export default function TrainingCalendar() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [activeSession, setActiveSession] = useState(null);
-  const [ownCalendarId, setOwnCalendarId] = useState(myCalendarId || 'primary');
-  const [savingCalendar, setSavingCalendar] = useState(false);
-
-  useEffect(() => {
-    if (myCalendarId) setOwnCalendarId(myCalendarId);
-  }, [myCalendarId]);
 
   const previewRef = useRef(null);
   const previewPos = useRef({ x: 0, y: 0 });
@@ -192,20 +186,6 @@ export default function TrainingCalendar() {
     const weekEnd = addDays(weekStart, DAY_COUNT);
     return start >= weekStart && start < weekEnd;
   });
-
-  const saveOwnCalendar = async () => {
-    if (!user?.email) return;
-    setSavingCalendar(true);
-    setError('');
-    try {
-      const next = await updateDirectoryUser(user.email, { 'Calendar ID': ownCalendarId.trim() || 'primary' });
-      applyDirectory(next);
-    } catch (err) {
-      setError(err.message || 'Could not save calendar ID.');
-    } finally {
-      setSavingCalendar(false);
-    }
-  };
 
   const placeAt = async (day, hour, minute, payload) => {
     const start = atSlot(day, hour, minute);
@@ -348,31 +328,6 @@ export default function TrainingCalendar() {
         selectedEmail={viewEmail}
         onSelect={setViewEmail}
       />
-
-      <div className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <label className="min-w-[240px] flex-1 text-sm">
-          Your calendar ID
-          <input
-            className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-sm"
-            value={ownCalendarId}
-            onChange={(event) => setOwnCalendarId(event.target.value)}
-            placeholder="primary or your Google Calendar ID"
-          />
-        </label>
-        <button
-          type="button"
-          disabled={savingCalendar || !user?.email}
-          className="rounded bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50"
-          onClick={saveOwnCalendar}
-        >
-          {savingCalendar ? 'Saving…' : 'Save calendar'}
-        </button>
-        <p className="w-full text-xs text-slate-500">
-          Saved on the Users sheet and loaded at login. Sessions assigned to you are written here. Use{' '}
-          <code>primary</code>, your email, or a calendar ID from Google Calendar settings. Teammates need “Make
-          changes to events” on this calendar to schedule for you.
-        </p>
-      </div>
 
       <div className="grid items-start gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
         <aside className="rounded-lg border border-slate-200 bg-white p-3 lg:sticky lg:top-16">

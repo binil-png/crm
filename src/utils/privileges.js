@@ -35,8 +35,10 @@ export const getPrivileges = ({ userType, userRole } = {}) => {
     canScheduleForOthers: canViewTraining,
     canViewAllTrainers: canViewTraining,
     defaultTrainerScope: leadOrAdmin ? 'all' : 'self',
-    canViewAllWorklogs: canViewTraining && leadOrAdmin,
-    canEditOwnWorklog: canViewTraining,
+    canViewAllWorklogs: admin || (canViewTraining && leadOrAdmin),
+    canReviewLeave: admin,
+    canViewAllInteractions: admin || teamLead,
+    canEditOwnWorklog: canViewTraining || admin,
     canEditOwnCalendar: canViewTraining || admin,
     canManageAnySession: canViewTraining && leadOrAdmin,
   };

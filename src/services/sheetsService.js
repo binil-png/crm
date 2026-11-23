@@ -634,6 +634,7 @@ export const updateSession = (sessionId, patch) =>
 
 export const addMessage = (message) => appendObject(SHEETS.INTERACTIONS, message, INTERACTION_HEADERS);
 export const addWorklog = (log) => appendObject(SHEETS.LOGS, log);
+export const updateWorklog = (logId, patch) => updateObjectById(SHEETS.LOGS, 'Log_ID', logId, patch);
 
 export const addAudit = async (entry) => appendObject(SHEETS.AUDIT, entry, HEADERS[SHEETS.AUDIT]);
 

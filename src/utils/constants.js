@@ -131,6 +131,8 @@ export const HEADERS = {
     'Work_Summary',
     'Leave_Reason',
     'Rescheduled_Sessions',
+    'Leave_Status',
+    'Reviewed_By',
   ],
   [SHEETS.USERS]: USER_HEADERS,
 };
@@ -367,6 +369,22 @@ export const ENTRY_TYPES = {
   WORK: 'Work Log',
   LEAVE: 'Leave',
 };
+export const LEAVE_STATUSES = ['Pending', 'Approved', 'Rejected'];
+
+export const leaveStatusOf = (log = {}) => {
+  if (String(log.Entry_Type || '') !== ENTRY_TYPES.LEAVE) return '';
+  const value = String(log.Leave_Status || '').trim();
+  return LEAVE_STATUSES.includes(value) ? value : 'Pending';
+};
+
+export const leaveStatusColor = (status) => {
+  const map = {
+    Pending: 'bg-amber-100 text-amber-800',
+    Approved: 'bg-emerald-100 text-emerald-800',
+    Rejected: 'bg-rose-100 text-rose-800',
+  };
+  return map[status] || 'bg-slate-100 text-slate-600';
+};
 
 export const SCOPES = [
   'openid',
@@ -434,8 +452,20 @@ export const getLeadScheduleAt = (lead) => {
   return date;
 };
 
+export const isCallCompleted = (lead) => {
+  const items = parseStageComments(lead?.Comments);
+  let last = '';
+  items.forEach((item) => {
+    const message = String(item.message || '');
+    if (/^call scheduled/i.test(message) || /^call completed/i.test(message) || /^call done/i.test(message)) {
+      last = message;
+    }
+  });
+  return /^call completed|^call done/i.test(last);
+};
+
 export const getCallScheduleState = (lead, now = new Date()) => {
-  if (!lead || isClosedStatus(lead.Status)) return 'none';
+  if (!lead || isClosedStatus(lead.Status) || isCallCompleted(lead)) return 'none';
   const at = getLeadScheduleAt(lead);
   if (!at) return 'none';
   const diff = at.getTime() - now.getTime();
@@ -686,6 +716,12 @@ export const appendStageComment = (existing, note) => {
   const next = `Stage ${nextNum} ${message}`;
   const current = items.map((item) => item.raw).join('\n');
   return `${current ? `${current}\n` : ''}${next}\n`;
+};
+
+export const removeStageComment = (existing, num) => {
+  const remaining = parseStageComments(existing).filter((item) => Number(item.num) !== Number(num));
+  if (!remaining.length) return '';
+  return `${remaining.map((item, index) => `Stage ${index + 1} ${item.message}`.trim()).join('\n')}\n`;
 };
 
 export const leadKey = (lead) => `${lead._sheet || ''}#${lead._row || lead['Sl No']}`;
