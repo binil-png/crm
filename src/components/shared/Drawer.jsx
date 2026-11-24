@@ -47,20 +47,19 @@ export default function Drawer({
       )}
 
       <div className={`fixed inset-0 z-40 overflow-hidden ${open ? '' : 'pointer-events-none'}`}>
-        <button
-          type="button"
-          aria-label="Close drawer"
-          tabIndex={open ? 0 : -1}
-          className={`absolute inset-0 bg-slate-900/40 transition-opacity duration-300 ease-out ${
-            open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
-          }`}
-          onClick={onClose}
-        />
+        {open ? (
+          <button
+            type="button"
+            aria-label="Close drawer"
+            className="absolute inset-0 bg-slate-900/40 opacity-100 transition-opacity duration-300 ease-out"
+            onClick={onClose}
+          />
+        ) : null}
         <aside
           aria-hidden={open ? undefined : true}
           className={`absolute inset-y-0 right-0 flex w-full flex-col bg-slate-50 shadow-2xl transition-transform duration-300 ease-out ${
             wide ? 'max-w-[760px]' : 'max-w-md'
-          } ${open ? 'translate-x-0' : 'translate-x-full'}`}
+          } ${open ? 'pointer-events-auto translate-x-0' : 'pointer-events-none translate-x-full'}`}
         >
           <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
             <h2 className="text-sm font-semibold">{title}</h2>

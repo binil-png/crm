@@ -300,14 +300,6 @@ export default function TrainingCalendar() {
               currentEmail={user?.email}
             />
           </div>
-          <WorkTypeSelect
-            value={workType}
-            onChange={(type) => {
-              setWorkType(type);
-              setTypeFilter(type);
-            }}
-            compact
-          />
           <label className="text-sm text-slate-600">
             Duration
             <select
@@ -325,6 +317,23 @@ export default function TrainingCalendar() {
         </div>
       </div>
 
+      <div className="sticky top-28 z-30 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
+        <p className="text-sm font-medium text-slate-700">Training / Doubt clarification</p>
+        <WorkTypeSelect
+          value={typeFilter}
+          allowAll
+          onChange={(type) => {
+            setTypeFilter(type);
+            if (type !== 'All') setWorkType(type);
+          }}
+        />
+        <p className="text-xs text-slate-500">
+          {typeFilter === 'All'
+            ? 'Showing all types. New sessions use Training unless you pick a type.'
+            : `Showing ${typeFilter}. New sessions are created as ${workType}.`}
+        </p>
+      </div>
+
       {error ? <p className="rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
       {busy ? <p className="text-sm text-slate-500">Updating calendar…</p> : null}
 
@@ -338,7 +347,7 @@ export default function TrainingCalendar() {
       />
 
       <div className="grid items-start gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <aside className="rounded-lg border border-slate-200 bg-white p-3 lg:sticky lg:top-16">
+        <aside className="rounded-lg border border-slate-200 bg-white p-3 lg:sticky lg:top-40">
           <p className="text-sm font-medium">Clients to schedule</p>
           <p className="mb-2 text-xs text-slate-500">Drag onto the week, or click to select.</p>
           <label className="mb-3 block text-xs text-slate-600">
@@ -394,7 +403,7 @@ export default function TrainingCalendar() {
           </div>
         </aside>
 
-        <div className="overflow-auto rounded-lg border border-slate-300 bg-white">
+        <div className="max-h-[calc(100vh-18rem)] overflow-auto rounded-lg border border-slate-300 bg-white">
           <div className="grid min-w-[900px]" style={{ gridTemplateColumns: `56px repeat(${DAY_COUNT}, minmax(0, 1fr))` }}>
             <div className="sticky top-0 z-10 border-b border-slate-300 bg-slate-50" />
             {days.map((day) => (

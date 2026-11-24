@@ -223,8 +223,9 @@ export default function ClientList() {
                   <p className="mb-1">Type</p>
                   <WorkTypeSelect
                     value={workType}
+                    disabled={!canEditClient || busyId === client.Client_ID}
                     onChange={(next) =>
-                      canEditClient && run(client.Client_ID, () => updateClient(client.Client_ID, { Work_Type: next }))
+                      run(client.Client_ID, () => updateClient(client.Client_ID, { Work_Type: next }))
                     }
                   />
                 </div>
