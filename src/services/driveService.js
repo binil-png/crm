@@ -1,5 +1,6 @@
 import {
   getAccessToken,
+  getEmployeesSpreadsheetId,
   getSpreadsheetId,
   getTrainingSpreadsheetId,
   googleFetch,
@@ -33,8 +34,11 @@ export const getSpreadsheetStamp = async () => {
   try {
     const sales = await stampForFile(getSpreadsheetId());
     const training = getTrainingSpreadsheetId();
+    const employees = getEmployeesSpreadsheetId();
     const extra = training && training !== getSpreadsheetId() ? await stampForFile(training) : '';
-    return `${sales}|${extra}`;
+    const people =
+      employees && employees !== getSpreadsheetId() && employees !== training ? await stampForFile(employees) : '';
+    return `${sales}|${extra}|${people}`;
   } catch (error) {
     console.warn('Drive change check skipped.', error);
     return '';

@@ -1,11 +1,13 @@
 export const ROLES = {
   SALES: 'sales',
   TRAINING: 'training',
+  CONFIG: 'config',
 };
 
 export const ROLE_LABELS = {
   [ROLES.SALES]: 'Sales',
   [ROLES.TRAINING]: 'Technical support',
+  [ROLES.CONFIG]: 'Configuration',
 };
 
 export const USER_TYPES = ['Sales', 'Technical support'];
@@ -68,6 +70,7 @@ export const SYSTEM_SHEETS = {
   ANALYTICS: 'CRM Analytics',
   INTERACTIONS: 'Interaction History',
   USERS: 'Users',
+  WORKBOOK_CONFIG: 'Workbook_Config',
 };
 
 export const SHEETS = {
@@ -114,7 +117,28 @@ export const AUDIT_HEADERS = ['Timestamp', 'User Email', 'Action Taken', 'Client
 
 export const SETTINGS_HEADERS = ['Active CRM Sheets'];
 
+export const WORKBOOK_KEYS = {
+  SALES: 'Sales',
+  TRAINING: 'Training',
+  EMPLOYEES: 'Employees',
+};
+
+export const WORKBOOK_CONFIG_HEADERS = [
+  'Workbook',
+  'Google Account',
+  'Spreadsheet ID',
+  'Updated At',
+  'Updated By',
+];
+
 export const USER_HEADERS = ['Username', 'Email', 'User Type', 'User Role', 'Calendar ID', 'Last Login', 'Registered'];
+
+export const parseSpreadsheetId = (value) => {
+  const text = String(value || '').trim();
+  const fromUrl = text.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/i);
+  if (fromUrl) return fromUrl[1];
+  return text.replace(/\s+/g, '');
+};
 
 export const normalizeRegistered = (value) => {
   const text = String(value || '').trim().toLowerCase();
@@ -124,6 +148,7 @@ export const normalizeRegistered = (value) => {
 
 export const HEADERS = {
   [SHEETS.SETTINGS]: SETTINGS_HEADERS,
+  [SHEETS.WORKBOOK_CONFIG]: WORKBOOK_CONFIG_HEADERS,
   [SHEETS.AUDIT]: AUDIT_HEADERS,
   [SHEETS.INTERACTIONS]: INTERACTION_HEADERS,
   [SHEETS.NO_RESPONSE]: LEAD_HEADERS,
@@ -439,6 +464,11 @@ export const STORAGE_KEYS = {
   API_KEY: 'crm_google_api_key',
   SPREADSHEET_ID: 'crm_spreadsheet_id',
   TRAINING_SPREADSHEET_ID: 'crm_training_spreadsheet_id',
+  EMPLOYEES_SPREADSHEET_ID: 'crm_employees_spreadsheet_id',
+  CONFIG_SPREADSHEET_ID: 'crm_config_spreadsheet_id',
+  SALES_GOOGLE_ACCOUNT: 'crm_sales_google_account',
+  TRAINING_GOOGLE_ACCOUNT: 'crm_training_google_account',
+  EMPLOYEES_GOOGLE_ACCOUNT: 'crm_employees_google_account',
   CALENDAR_ID: 'crm_calendar_id',
   DEMO_MODE: 'crm_demo_mode',
   MOCK_DB: 'crm_mock_db_v8',

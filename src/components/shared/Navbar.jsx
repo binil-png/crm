@@ -88,18 +88,38 @@ export default function Navbar() {
               Account <span className="ml-1 font-medium text-emerald-700">Registered</span>
             </p>
           ) : null}
-          {privileges.canSwitchModule ? (
-            <div className="inline-flex h-7 items-center rounded border border-slate-200 p-0.5">
-              {Object.values(ROLES).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => switchRole(value)}
-                  className={`h-6 rounded px-2 text-xs ${role === value ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
-                >
-                  {ROLE_LABELS[value]}
-                </button>
-              ))}
+          {privileges.canSwitchModule || privileges.canViewConfigSection ? (
+            <div className="inline-flex flex-wrap items-center gap-2">
+              <div className="inline-flex h-7 items-center rounded border border-slate-200 p-0.5">
+                {(privileges.canSwitchModule
+                  ? [ROLES.SALES, ROLES.TRAINING]
+                  : [privileges.workspace]
+                ).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => switchRole(value)}
+                    className={`h-6 rounded px-2 text-xs ${
+                      role === value ? 'bg-slate-900 text-white' : 'text-slate-600'
+                    }`}
+                  >
+                    {ROLE_LABELS[value]}
+                  </button>
+                ))}
+              </div>
+              {privileges.canViewConfigSection ? (
+                <div className="inline-flex h-7 items-center rounded border border-slate-200 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => switchRole(ROLES.CONFIG)}
+                    className={`h-6 rounded px-2 text-xs ${
+                      role === ROLES.CONFIG ? 'bg-slate-900 text-white' : 'text-slate-600'
+                    }`}
+                  >
+                    {ROLE_LABELS[ROLES.CONFIG]}
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>

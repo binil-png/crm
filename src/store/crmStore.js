@@ -31,6 +31,7 @@ export const useCrmStore = create((set, get) => ({
   messages: [],
   worklogs: [],
   users: [],
+  workbookConfig: null,
   loading: false,
   syncing: false,
   lastSyncedAt: 0,
@@ -462,6 +463,13 @@ export const useCrmStore = create((set, get) => ({
     set({
       users: get().users.map((row) => (String(row.Email || '').toLowerCase() === String(email || '').toLowerCase() ? next : row)),
     });
+    return next;
+  },
+
+  saveWorkbookConfig: async (payload, userEmail) => {
+    const next = await sheets.saveWorkbookConfig(payload, userEmail);
+    set({ workbookConfig: next });
+    await get().refreshAll({ force: true });
     return next;
   },
 }));

@@ -97,6 +97,11 @@ export default function SetupScreen({ onSaved }) {
               onChange={(e) => setTrainingSpreadsheetId(e.target.value)}
               placeholder="Training_Clients, Training_Sessions, Users, Daily_Worklogs_Leaves"
             />
+            <p className="mt-1 text-xs text-slate-500">
+              Sales and training can belong to different Google accounts. After sign-in, Admin can set each
+              spreadsheet and owner under Google sheets. Employee details are saved on the employees sheet
+              configured there.
+            </p>
 
             <label className="mt-4 block text-sm font-medium">Calendar ID</label>
             <input

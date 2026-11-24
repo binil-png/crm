@@ -23,8 +23,10 @@ export const getPrivileges = ({ userType, userRole } = {}) => {
     canViewSales,
     canViewTraining,
     canSwitchModule: admin,
+    canViewConfigSection: admin || teamLead,
     canViewUsers: admin || teamLead,
     canManageUsers: admin,
+    canManageSheets: admin,
     canEditUserTypeRole: admin,
     canEditTeamCalendar: admin || teamLead,
     canAddLead: canViewSales,
@@ -45,7 +47,11 @@ export const getPrivileges = ({ userType, userRole } = {}) => {
 };
 
 export const workspaceFromPrivileges = (privileges, selectedRole) => {
-  if (privileges.canSwitchModule) return selectedRole || privileges.workspace;
+  if (selectedRole === ROLES.CONFIG && privileges.canViewConfigSection) return ROLES.CONFIG;
+  if (privileges.canSwitchModule) {
+    if (selectedRole === ROLES.SALES || selectedRole === ROLES.TRAINING) return selectedRole;
+    return privileges.workspace;
+  }
   if (privileges.canViewTraining && !privileges.canViewSales) return ROLES.TRAINING;
   return ROLES.SALES;
 };

@@ -5,10 +5,12 @@ import {
   LEAD_HEADERS,
   SHEETS,
   STORAGE_KEYS,
+  WORKBOOK_KEYS,
   appendStageComment,
   createId,
   formatDdMmYyyy,
   formatDdMmYyyyHm,
+  nowIso,
   objectToRow,
   rowsToObjects,
   sameDay,
@@ -25,6 +27,7 @@ const emptyDb = () => ({
   [SHEETS.SESSIONS]: [HEADERS[SHEETS.SESSIONS]],
   [SHEETS.LOGS]: [HEADERS[SHEETS.LOGS]],
   [SHEETS.USERS]: [HEADERS[SHEETS.USERS]],
+  [SHEETS.WORKBOOK_CONFIG]: [HEADERS[SHEETS.WORKBOOK_CONFIG]],
 });
 
 const leadRow = (sheet, values) => {
@@ -296,6 +299,12 @@ const seedDb = () => {
         )
       ),
     ],
+    [SHEETS.WORKBOOK_CONFIG]: [
+      HEADERS[SHEETS.WORKBOOK_CONFIG],
+      [WORKBOOK_KEYS.SALES, 'admin@example.com', 'demo-sales', nowIso(), 'admin@example.com'],
+      [WORKBOOK_KEYS.TRAINING, 'training@example.com', 'demo-training', nowIso(), 'admin@example.com'],
+      [WORKBOOK_KEYS.EMPLOYEES, 'training@example.com', 'demo-training', nowIso(), 'admin@example.com'],
+    ],
   };
 };
 
@@ -346,6 +355,7 @@ const migrateDb = (db) => {
   ensureHeaderRow(db, SHEETS.SESSIONS, HEADERS[SHEETS.SESSIONS]);
   ensureHeaderRow(db, SHEETS.LOGS, HEADERS[SHEETS.LOGS]);
   ensureHeaderRow(db, SHEETS.USERS, HEADERS[SHEETS.USERS]);
+  ensureHeaderRow(db, SHEETS.WORKBOOK_CONFIG, HEADERS[SHEETS.WORKBOOK_CONFIG]);
   if (!db.ANWAR) db.ANWAR = [LEAD_HEADERS];
   if (!db.SUNISH) db.SUNISH = [LEAD_HEADERS];
   return db;
@@ -365,6 +375,7 @@ export const mockEnsureWorkbook = async () => {
   db[SHEETS.CLIENTS] = db[SHEETS.CLIENTS] || [HEADERS[SHEETS.CLIENTS]];
   db[SHEETS.SESSIONS] = db[SHEETS.SESSIONS] || [HEADERS[SHEETS.SESSIONS]];
   db[SHEETS.USERS] = db[SHEETS.USERS] || [HEADERS[SHEETS.USERS]];
+  db[SHEETS.WORKBOOK_CONFIG] = db[SHEETS.WORKBOOK_CONFIG] || [HEADERS[SHEETS.WORKBOOK_CONFIG]];
   writeDb(db);
   return true;
 };
@@ -454,6 +465,36 @@ export const mockPatchCalendarEvent = async (eventId, { start, end }) => ({
   start,
   end,
 });
+
+export const mockGetWorkbookConfig = () => {
+  const values = getRows(SHEETS.WORKBOOK_CONFIG);
+  const rows = rowsToObjects(values, HEADERS[SHEETS.WORKBOOK_CONFIG]);
+  const rowOf = (name) => rows.find((row) => String(row.Workbook || '').trim() === name) || {};
+  const sales = rowOf(WORKBOOK_KEYS.SALES);
+  const training = rowOf(WORKBOOK_KEYS.TRAINING);
+  const employees = rowOf(WORKBOOK_KEYS.EMPLOYEES);
+  return {
+    salesAccount: String(sales['Google Account'] || 'admin@example.com').trim(),
+    spreadsheetId: String(sales['Spreadsheet ID'] || 'demo-sales').trim(),
+    trainingAccount: String(training['Google Account'] || 'training@example.com').trim(),
+    trainingSpreadsheetId: String(training['Spreadsheet ID'] || 'demo-training').trim(),
+    employeesAccount: String(employees['Google Account'] || training['Google Account'] || 'training@example.com').trim(),
+    employeesSpreadsheetId: String(employees['Spreadsheet ID'] || training['Spreadsheet ID'] || 'demo-training').trim(),
+  };
+};
+
+export const mockSaveWorkbookConfig = (config) => {
+  const db = readDb();
+  const at = nowIso();
+  db[SHEETS.WORKBOOK_CONFIG] = [
+    HEADERS[SHEETS.WORKBOOK_CONFIG],
+    [WORKBOOK_KEYS.SALES, config.salesAccount, config.spreadsheetId, at, 'admin@example.com'],
+    [WORKBOOK_KEYS.TRAINING, config.trainingAccount, config.trainingSpreadsheetId, at, 'admin@example.com'],
+    [WORKBOOK_KEYS.EMPLOYEES, config.employeesAccount, config.employeesSpreadsheetId, at, 'admin@example.com'],
+  ];
+  writeDb(db);
+  return config;
+};
 
 export const mockSendMail = async ({ to, subject, body }) => ({
   id: createId('MAIL'),

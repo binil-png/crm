@@ -12,6 +12,7 @@ import TrainingCalendar from './components/training/TrainingCalendar';
 import SessionList from './components/training/SessionList';
 import WorkLogForm from './components/worklog/WorkLogForm';
 import UsersPanel from './components/admin/UsersPanel';
+import SheetsConfigPanel from './components/admin/SheetsConfigPanel';
 
 export default function App() {
   const { isAuthenticated, booting, role, privileges, error } = useAuth();
@@ -27,8 +28,12 @@ export default function App() {
   useNetworkPoll(isAuthenticated);
 
   useEffect(() => {
+    if (role === ROLES.CONFIG) {
+      setTab(privileges.canViewUsers ? 'users' : 'sheets');
+      return;
+    }
     setTab('main');
-  }, [role]);
+  }, [role, privileges.canViewUsers]);
 
   if (booting) {
     return (
@@ -45,7 +50,6 @@ export default function App() {
   const salesTabs = [
     { id: 'main', label: 'Leads' },
     { id: 'messages', label: 'Interaction History' },
-    ...(privileges.admin ? [{ id: 'worklog', label: 'Work log / Leave' }] : []),
   ];
   const trainingTabs = [
     { id: 'main', label: 'Calendar' },
@@ -54,10 +58,13 @@ export default function App() {
     { id: 'worklog', label: 'Work log / Leave' },
     { id: 'messages', label: 'Interaction History' },
   ];
-  const tabs = [
-    ...(role === ROLES.SALES ? salesTabs : trainingTabs),
+  const configTabs = [
     ...(privileges.canViewUsers ? [{ id: 'users', label: 'Users' }] : []),
+    ...(privileges.canManageSheets ? [{ id: 'sheets', label: 'Google sheets' }] : []),
+    ...(privileges.admin ? [{ id: 'worklog', label: 'Work log / Leave' }] : []),
   ];
+  const tabs =
+    role === ROLES.CONFIG ? configTabs : role === ROLES.SALES ? salesTabs : trainingTabs;
 
   return (
     <div className="min-h-screen">
@@ -80,6 +87,16 @@ export default function App() {
           ))}
         </div>
 
+        {role === ROLES.CONFIG ? (
+          <div className="mb-4">
+            <h1 className="text-lg font-semibold">Configuration</h1>
+            <p className="text-sm text-slate-500">
+              User management, Google sheet accounts, and admin work-log review live here, not in Sales or
+              Technical support.
+            </p>
+          </div>
+        ) : null}
+
         {loading ? <p className="mb-4 text-sm text-slate-500">Syncing Google data…</p> : null}
 
         {role === ROLES.SALES && tab === 'main' ? <LeadKanban /> : null}
@@ -91,9 +108,11 @@ export default function App() {
             <SessionList />
           </section>
         ) : null}
-        {(role === ROLES.TRAINING || privileges.admin) && tab === 'worklog' ? <WorkLogForm /> : null}
+        {role === ROLES.TRAINING && tab === 'worklog' ? <WorkLogForm /> : null}
         {tab === 'messages' ? <CommunicationPanel /> : null}
-        {privileges.canViewUsers && tab === 'users' ? <UsersPanel /> : null}
+        {role === ROLES.CONFIG && privileges.canViewUsers && tab === 'users' ? <UsersPanel /> : null}
+        {role === ROLES.CONFIG && privileges.canManageSheets && tab === 'sheets' ? <SheetsConfigPanel /> : null}
+        {role === ROLES.CONFIG && privileges.admin && tab === 'worklog' ? <WorkLogForm /> : null}
       </main>
     </div>
   );

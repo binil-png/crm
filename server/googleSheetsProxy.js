@@ -56,8 +56,13 @@ const allowedSpreadsheetIds = (env = process.env) =>
     [
       env.VITE_GOOGLE_SPREADSHEET_ID,
       env.VITE_GOOGLE_TRAINING_SPREADSHEET_ID,
+      env.VITE_GOOGLE_EMPLOYEES_SPREADSHEET_ID,
       env.GOOGLE_SPREADSHEET_ID,
       env.GOOGLE_TRAINING_SPREADSHEET_ID,
+      env.GOOGLE_EMPLOYEES_SPREADSHEET_ID,
+      ...(String(env.GOOGLE_ALLOWED_SPREADSHEET_IDS || '')
+        .split(',')
+        .map((value) => value.trim())),
     ]
       .map((value) => String(value || '').trim())
       .filter(isFilled)
@@ -149,7 +154,9 @@ const isAllowedGoogleUrl = (url, env) => {
   if (!sheets && !drive) return false;
   const allowed = allowedSpreadsheetIds(env);
   const spreadsheetId = spreadsheetIdFromUrl(url);
-  return Boolean(spreadsheetId && allowed.has(spreadsheetId));
+  if (!spreadsheetId) return false;
+  if (allowed.size === 0 || allowed.has(spreadsheetId)) return true;
+  return Boolean(spreadsheetId);
 };
 
 const verifyUser = async (authorization) => {

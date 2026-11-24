@@ -16,17 +16,75 @@ const sanitizeApiKey = (value) => {
   return key;
 };
 
-export const getConfig = () => ({
-  clientId: localStorage.getItem(STORAGE_KEYS.CLIENT_ID) || envValue('VITE_GOOGLE_CLIENT_ID'),
-  apiKey: sanitizeApiKey(localStorage.getItem(STORAGE_KEYS.API_KEY) || envValue('VITE_GOOGLE_API_KEY')),
-  spreadsheetId: localStorage.getItem(STORAGE_KEYS.SPREADSHEET_ID) || envValue('VITE_GOOGLE_SPREADSHEET_ID'),
-  trainingSpreadsheetId:
-    localStorage.getItem(STORAGE_KEYS.TRAINING_SPREADSHEET_ID) || envValue('VITE_GOOGLE_TRAINING_SPREADSHEET_ID'),
-  calendarId: localStorage.getItem(STORAGE_KEYS.CALENDAR_ID) || envValue('VITE_GOOGLE_CALENDAR_ID', 'primary'),
-  demoMode: localStorage.getItem(STORAGE_KEYS.DEMO_MODE) === '1',
-});
+let workbookOverride = {
+  spreadsheetId: '',
+  trainingSpreadsheetId: '',
+  employeesSpreadsheetId: '',
+  salesAccount: '',
+  trainingAccount: '',
+  employeesAccount: '',
+};
 
-export const saveConfig = ({ clientId, apiKey, spreadsheetId, trainingSpreadsheetId, calendarId, demoMode }) => {
+const storedOrEnv = (storageKey, envKey, fallback = '') =>
+  localStorage.getItem(storageKey) || envValue(envKey, fallback);
+
+export const getConfig = () => {
+  const spreadsheetId =
+    workbookOverride.spreadsheetId || storedOrEnv(STORAGE_KEYS.SPREADSHEET_ID, 'VITE_GOOGLE_SPREADSHEET_ID');
+  const trainingSpreadsheetId =
+    workbookOverride.trainingSpreadsheetId ||
+    storedOrEnv(STORAGE_KEYS.TRAINING_SPREADSHEET_ID, 'VITE_GOOGLE_TRAINING_SPREADSHEET_ID');
+  const employeesSpreadsheetId =
+    workbookOverride.employeesSpreadsheetId ||
+    storedOrEnv(STORAGE_KEYS.EMPLOYEES_SPREADSHEET_ID, 'VITE_GOOGLE_EMPLOYEES_SPREADSHEET_ID') ||
+    trainingSpreadsheetId;
+  return {
+    clientId: localStorage.getItem(STORAGE_KEYS.CLIENT_ID) || envValue('VITE_GOOGLE_CLIENT_ID'),
+    apiKey: sanitizeApiKey(localStorage.getItem(STORAGE_KEYS.API_KEY) || envValue('VITE_GOOGLE_API_KEY')),
+    spreadsheetId,
+    trainingSpreadsheetId,
+    employeesSpreadsheetId,
+    configSpreadsheetId:
+      localStorage.getItem(STORAGE_KEYS.CONFIG_SPREADSHEET_ID) ||
+      storedOrEnv(STORAGE_KEYS.SPREADSHEET_ID, 'VITE_GOOGLE_SPREADSHEET_ID'),
+    salesAccount: workbookOverride.salesAccount || localStorage.getItem(STORAGE_KEYS.SALES_GOOGLE_ACCOUNT) || '',
+    trainingAccount:
+      workbookOverride.trainingAccount || localStorage.getItem(STORAGE_KEYS.TRAINING_GOOGLE_ACCOUNT) || '',
+    employeesAccount:
+      workbookOverride.employeesAccount || localStorage.getItem(STORAGE_KEYS.EMPLOYEES_GOOGLE_ACCOUNT) || '',
+    calendarId: localStorage.getItem(STORAGE_KEYS.CALENDAR_ID) || envValue('VITE_GOOGLE_CALENDAR_ID', 'primary'),
+    demoMode: localStorage.getItem(STORAGE_KEYS.DEMO_MODE) === '1',
+  };
+};
+
+const writeConfigValue = (key, value) => {
+  const text = String(value || '').trim();
+  if (text) localStorage.setItem(key, text);
+  else localStorage.removeItem(key);
+};
+
+export const applyWorkbookOverride = (partial = {}) => {
+  workbookOverride = {
+    ...workbookOverride,
+    ...Object.fromEntries(
+      Object.entries(partial).map(([key, value]) => [key, String(value || '').trim()])
+    ),
+  };
+};
+
+export const saveConfig = ({
+  clientId,
+  apiKey,
+  spreadsheetId,
+  trainingSpreadsheetId,
+  employeesSpreadsheetId,
+  configSpreadsheetId,
+  salesAccount,
+  trainingAccount,
+  employeesAccount,
+  calendarId,
+  demoMode,
+} = {}) => {
   if (demoMode) {
     localStorage.setItem(STORAGE_KEYS.DEMO_MODE, '1');
     return;
@@ -35,10 +93,28 @@ export const saveConfig = ({ clientId, apiKey, spreadsheetId, trainingSpreadshee
   if (clientId) localStorage.setItem(STORAGE_KEYS.CLIENT_ID, clientId.trim());
   const safeApiKey = sanitizeApiKey(apiKey);
   if (safeApiKey) localStorage.setItem(STORAGE_KEYS.API_KEY, safeApiKey);
-  else localStorage.removeItem(STORAGE_KEYS.API_KEY);
+  else if (apiKey !== undefined) localStorage.removeItem(STORAGE_KEYS.API_KEY);
   if (spreadsheetId) localStorage.setItem(STORAGE_KEYS.SPREADSHEET_ID, spreadsheetId.trim());
   if (trainingSpreadsheetId) localStorage.setItem(STORAGE_KEYS.TRAINING_SPREADSHEET_ID, trainingSpreadsheetId.trim());
+  if (employeesSpreadsheetId !== undefined) {
+    writeConfigValue(STORAGE_KEYS.EMPLOYEES_SPREADSHEET_ID, employeesSpreadsheetId);
+  }
+  if (configSpreadsheetId) localStorage.setItem(STORAGE_KEYS.CONFIG_SPREADSHEET_ID, configSpreadsheetId.trim());
+  else if (spreadsheetId && !localStorage.getItem(STORAGE_KEYS.CONFIG_SPREADSHEET_ID)) {
+    localStorage.setItem(STORAGE_KEYS.CONFIG_SPREADSHEET_ID, spreadsheetId.trim());
+  }
+  if (salesAccount !== undefined) writeConfigValue(STORAGE_KEYS.SALES_GOOGLE_ACCOUNT, salesAccount);
+  if (trainingAccount !== undefined) writeConfigValue(STORAGE_KEYS.TRAINING_GOOGLE_ACCOUNT, trainingAccount);
+  if (employeesAccount !== undefined) writeConfigValue(STORAGE_KEYS.EMPLOYEES_GOOGLE_ACCOUNT, employeesAccount);
   if (calendarId) localStorage.setItem(STORAGE_KEYS.CALENDAR_ID, calendarId.trim());
+  applyWorkbookOverride({
+    spreadsheetId: spreadsheetId ?? workbookOverride.spreadsheetId,
+    trainingSpreadsheetId: trainingSpreadsheetId ?? workbookOverride.trainingSpreadsheetId,
+    employeesSpreadsheetId: employeesSpreadsheetId ?? workbookOverride.employeesSpreadsheetId,
+    salesAccount: salesAccount ?? workbookOverride.salesAccount,
+    trainingAccount: trainingAccount ?? workbookOverride.trainingAccount,
+    employeesAccount: employeesAccount ?? workbookOverride.employeesAccount,
+  });
 };
 
 export const resetConfig = () => {
@@ -87,6 +163,10 @@ const isAppSheetsUrl = (url) =>
 export const getSpreadsheetId = () => getConfig().spreadsheetId;
 
 export const getTrainingSpreadsheetId = () => getConfig().trainingSpreadsheetId;
+
+export const getEmployeesSpreadsheetId = () => getConfig().employeesSpreadsheetId || getConfig().trainingSpreadsheetId;
+
+export const getConfigSpreadsheetId = () => getConfig().configSpreadsheetId || getConfig().spreadsheetId;
 
 export const getCalendarId = () => getConfig().calendarId || 'primary';
 
