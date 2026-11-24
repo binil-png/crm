@@ -253,12 +253,7 @@ export default function TrainingCalendar() {
     <section className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">Training calendar</h2>
-          <p className="text-sm text-slate-500">
-            View every trainer’s sessions and status, or open one person’s calendar. New sessions are scheduled on your
-            calendar. Scheduling adds the lead as a Google Calendar guest so they get the invitation email.
-          </p>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="text-xs text-slate-500">
             {viewEmail === ALL_TRAINERS
               ? `Showing all trainers · ${visibleSessions.length} sessions this week`
               : `Showing ${viewTrainer?.name || viewEmail} · calendar ${viewTrainer?.calendarId || '—'}`}
