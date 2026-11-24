@@ -231,6 +231,19 @@ const seedDb = () => {
         },
         HEADERS[SHEETS.CLIENTS]
       ),
+      objectToRow(
+        {
+          Client_ID: createId('CL'),
+          Lead_ID: 'SUNISH#5',
+          Client_Name: 'Dr Meera Nair',
+          Contact_Email: 'drmeera@clinic.test',
+          Assigned_Trainer: 'training@example.com',
+          Training_Status: 'Completed',
+          Completed_Date: today,
+          Work_Type: 'Training',
+        },
+        HEADERS[SHEETS.CLIENTS]
+      ),
     ],
     [SHEETS.SESSIONS]: [
       HEADERS[SHEETS.SESSIONS],

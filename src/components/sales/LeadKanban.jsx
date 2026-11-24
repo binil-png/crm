@@ -30,7 +30,6 @@ import LeadModal from './LeadModal';
 import SalesCloseModal from './SalesCloseModal';
 import CallScheduleSidebar from './CallScheduleSidebar';
 import TrainingDropBox from './TrainingDropBox';
-import SalesTrainingProgress from './SalesTrainingProgress';
 import ScheduleDateTimeFields from './ScheduleDateTimeFields';
 import Modal from '../shared/Modal';
 import Drawer from '../shared/Drawer';
@@ -390,9 +389,6 @@ export default function LeadKanban() {
         edgeLabel="Call schedules and training"
         edgeBadge={overdueCount + readyToPassCount}
       >
-        <div className="mb-4">
-          <SalesTrainingProgress ribbon />
-        </div>
         <div className="grid items-start gap-4 md:grid-cols-2">
           {privileges.canPassToTraining ? <TrainingDropBox leads={leads} /> : null}
           <CallScheduleSidebar

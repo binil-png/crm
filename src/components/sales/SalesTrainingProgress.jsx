@@ -1,22 +1,50 @@
 import { useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { isDemoMode } from '../../services/googleApi';
 import { useCrmStore } from '../../store/crmStore';
 import {
   TRAINING_STATUSES,
+  WORK_TYPES,
+  clientWorkType,
   findLeadForClient,
+  formatDate,
+  listTrainingTeam,
   normalizeTrainingStatus,
+  sameEmail,
   trainerLabel,
   trainingColor,
 } from '../../utils/constants';
+import TrainerSelect, { ALL_TRAINERS } from '../training/TrainerSelect';
+
+const PROGRESS_GROUPS = [
+  {
+    status: 'Not started',
+    title: 'Waiting for training',
+    hint: 'Passed to the technical team and not started yet.',
+  },
+  {
+    status: 'Ongoing',
+    title: 'In training',
+    hint: 'Currently receiving training from the technical team.',
+  },
+  {
+    status: 'Completed',
+    title: 'Training completed',
+    hint: 'Technical team has finished training.',
+  },
+];
 
 export default function SalesTrainingProgress({ compact = false, ribbon = false }) {
   const { user, privileges } = useAuth();
-  const { clients, leads } = useCrmStore();
+  const { clients, leads, sessions, users } = useCrmStore();
   const [status, setStatus] = useState('All');
+  const [workType, setWorkType] = useState('All');
+  const [trainer, setTrainer] = useState(ALL_TRAINERS);
+  const [executive, setExecutive] = useState('All');
 
   const mine = useMemo(() => {
     const rows = clients.filter((client) => {
-      if (privileges.admin || privileges.teamLead) return true;
+      if (privileges.admin || privileges.teamLead || isDemoMode()) return true;
       const lead = findLeadForClient(leads, client);
       const owner = String(lead?.Executive || '').trim().toLowerCase();
       const me = String(user?.name || '').trim().toLowerCase();
@@ -27,6 +55,35 @@ export default function SalesTrainingProgress({ compact = false, ribbon = false 
     return rows.sort((a, b) => String(a.Client_Name || '').localeCompare(String(b.Client_Name || '')));
   }, [clients, leads, privileges.admin, privileges.teamLead, user?.email, user?.name]);
 
+  const team = useMemo(
+    () => listTrainingTeam({ clients, sessions, users, extra: [user?.email], currentEmail: user?.email }),
+    [clients, sessions, users, user?.email]
+  );
+
+  const rows = useMemo(
+    () =>
+      mine.map((client) => {
+        const lead = findLeadForClient(leads, client);
+        const itemStatus = normalizeTrainingStatus(client.Training_Status);
+        const meta = PROGRESS_GROUPS.find((item) => item.status === itemStatus);
+        return {
+          client,
+          lead,
+          status: itemStatus,
+          title: meta?.title || itemStatus,
+          workType: clientWorkType(client),
+          executive: String(lead?.Executive || '').trim(),
+          trainer: String(client.Assigned_Trainer || '').trim(),
+        };
+      }),
+    [mine, leads]
+  );
+
+  const executives = useMemo(
+    () => [...new Set(rows.map((row) => row.executive).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [rows]
+  );
+
   const grouped = useMemo(
     () =>
       TRAINING_STATUSES.map((item) => ({
@@ -36,7 +93,14 @@ export default function SalesTrainingProgress({ compact = false, ribbon = false 
     [mine]
   );
 
-  const visible = grouped.filter((group) => status === 'All' || group.status === status);
+  const visible = rows.filter((row) => {
+    if (status !== 'All' && row.status !== status) return false;
+    if (workType !== 'All' && row.workType !== workType) return false;
+    if (executive !== 'All' && row.executive !== executive) return false;
+    if (trainer === 'unassigned') return !row.trainer;
+    if (trainer !== ALL_TRAINERS && !sameEmail(row.trainer, trainer)) return false;
+    return true;
+  });
   const counts = Object.fromEntries(grouped.map((group) => [group.status, group.rows.length]));
 
   if (ribbon) {
@@ -66,83 +130,140 @@ export default function SalesTrainingProgress({ compact = false, ribbon = false 
     <section className={compact ? '' : 'rounded-lg border border-slate-200 bg-white p-4'}>
       <div className={compact ? 'mb-3' : 'mb-4 flex flex-wrap items-end justify-between gap-3'}>
         <div>
-          <h2 className={compact ? 'text-sm font-semibold' : 'text-lg font-semibold'}>Client training</h2>
+          <h2 className={compact ? 'text-sm font-semibold' : 'text-lg font-semibold'}>Training progress</h2>
           <p className="text-xs text-slate-500">
             {privileges.admin || privileges.teamLead
-              ? 'Training progress for all clients passed from sales.'
-              : 'Training progress for the clients you passed to the technical team.'}
+              ? 'Waiting, in training, and completed clients passed from sales to the technical team.'
+              : 'Track the clients you passed to the technical team: waiting, currently in training, or completed.'}
           </p>
         </div>
         {!compact ? (
-          <label className="text-xs font-medium text-slate-600">
-            Status
-            <select
-              className="mt-1 block rounded border border-slate-300 bg-white px-3 py-1.5 text-sm"
-              value={status}
-              onChange={(event) => setStatus(event.target.value)}
-            >
-              <option value="All">All statuses</option>
-              {TRAINING_STATUSES.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </label>
+          <p className="text-xs text-slate-500">{visible.length} of {rows.length} clients</p>
         ) : null}
       </div>
 
       <div className={`grid gap-3 ${compact ? 'grid-cols-3' : 'md:grid-cols-3'}`}>
-        {TRAINING_STATUSES.map((item) => (
-          <div key={item} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-            <p className="text-[11px] uppercase tracking-wide text-slate-500">{item}</p>
-            <p className="text-lg font-semibold text-slate-800">{counts[item] || 0}</p>
+        {PROGRESS_GROUPS.map((item) => (
+          <div key={item.status} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">{item.title}</p>
+            <p className="text-lg font-semibold text-slate-800">{counts[item.status] || 0}</p>
+            {!compact ? <p className="mt-1 text-[11px] text-slate-500">{item.hint}</p> : null}
           </div>
         ))}
       </div>
 
       {compact ? (
-        <p className="mt-3 text-xs text-slate-500">Open the Client training tab for the full list by status.</p>
-      ) : null}
-
-      {compact ? null : (
-      <div className="mt-4 grid gap-4 md:grid-cols-3">
-        {visible.map((group) => (
-          <article key={group.status} className="rounded-lg border border-slate-200 bg-white p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{group.status}</p>
-              <span className={`rounded px-1.5 py-0.5 text-[10px] ${trainingColor(group.status)}`}>
-                {group.rows.length}
-              </span>
+        <p className="mt-3 text-xs text-slate-500">Open Training progress for the full list by status.</p>
+      ) : (
+        <>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="text-xs font-medium text-slate-600">
+              Status
+              <select
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-normal text-slate-800"
+                value={status}
+                onChange={(event) => setStatus(event.target.value)}
+              >
+                <option value="All">All statuses</option>
+                {PROGRESS_GROUPS.map((item) => (
+                  <option key={item.status} value={item.status}>
+                    {item.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs font-medium text-slate-600">
+              Work type
+              <select
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-normal text-slate-800"
+                value={workType}
+                onChange={(event) => setWorkType(event.target.value)}
+              >
+                <option value="All">All work types</option>
+                {WORK_TYPES.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="text-xs font-medium text-slate-600">
+              <TrainerSelect
+                compact
+                allowAll
+                allowUnassigned
+                label="Trainer"
+                value={trainer}
+                onChange={setTrainer}
+                team={team}
+                currentEmail={user?.email}
+              />
             </div>
-            {group.rows.length === 0 ? (
-              <p className="text-xs text-slate-400">No clients.</p>
-            ) : (
-              <div className={compact ? 'max-h-[180px] space-y-2 overflow-auto' : 'space-y-2'}>
-                {group.rows.map((client) => {
-                  const lead = findLeadForClient(leads, client);
-                  return (
-                    <div key={client.Client_ID} className="rounded border border-slate-100 px-2 py-2">
-                      <p className="truncate text-sm font-medium">{client.Client_Name}</p>
-                      <p className="truncate text-xs text-slate-500">
-                        {lead?.Executive ? `${lead.Executive} · ` : ''}
-                        {client.Work_Type || 'Training'}
-                      </p>
-                      {client.Assigned_Trainer ? (
-                        <p className="mt-1 truncate text-[11px] text-sky-800">
-                          Trainer: {trainerLabel(client.Assigned_Trainer)}
-                        </p>
-                      ) : (
-                        <p className="mt-1 text-[11px] text-amber-700">Waiting for a trainer</p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </article>
-        ))}
-      </div>
+            <label className="text-xs font-medium text-slate-600">
+              Executive
+              <select
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-normal text-slate-800"
+                value={executive}
+                onChange={(event) => setExecutive(event.target.value)}
+              >
+                <option value="All">All executives</option>
+                {executives.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-4 overflow-auto rounded border border-slate-300">
+            <table className="min-w-full border-collapse text-left text-sm">
+              <thead className="sticky top-0 bg-slate-50 text-xs uppercase text-slate-500">
+                <tr>
+                  <th className="border border-slate-300 px-3 py-2">Client</th>
+                  <th className="border border-slate-300 px-3 py-2">Contact</th>
+                  <th className="border border-slate-300 px-3 py-2">Executive</th>
+                  <th className="border border-slate-300 px-3 py-2">Work type</th>
+                  <th className="border border-slate-300 px-3 py-2">Status</th>
+                  <th className="border border-slate-300 px-3 py-2">Trainer</th>
+                  <th className="border border-slate-300 px-3 py-2">Completed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.length === 0 ? (
+                  <tr>
+                    <td className="border border-slate-300 px-3 py-6 text-center text-slate-500" colSpan={7}>
+                      No clients match these filters.
+                    </td>
+                  </tr>
+                ) : (
+                  visible.map((row) => (
+                    <tr key={row.client.Client_ID} className="hover:bg-slate-50">
+                      <td className="border border-slate-300 px-3 py-2 font-medium">{row.client.Client_Name || '—'}</td>
+                      <td className="border border-slate-300 px-3 py-2 text-slate-600">
+                        <p>{row.client.Contact_Email || '—'}</p>
+                        {row.lead?.['Contact Number'] ? (
+                          <p className="text-xs text-slate-500">{row.lead['Contact Number']}</p>
+                        ) : null}
+                      </td>
+                      <td className="border border-slate-300 px-3 py-2">{row.executive || '—'}</td>
+                      <td className="border border-slate-300 px-3 py-2">{row.workType}</td>
+                      <td className="border border-slate-300 px-3 py-2">
+                        <span className={`rounded px-1.5 py-0.5 text-xs ${trainingColor(row.status)}`}>{row.title}</span>
+                      </td>
+                      <td className="border border-slate-300 px-3 py-2">
+                        {row.trainer ? trainerLabel(row.trainer) : 'Waiting for a trainer'}
+                      </td>
+                      <td className="border border-slate-300 px-3 py-2 text-slate-600">
+                        {row.status === 'Completed' ? formatDate(row.client.Completed_Date) : '—'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </section>
   );
