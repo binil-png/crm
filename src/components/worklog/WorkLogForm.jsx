@@ -3,11 +3,14 @@ import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
 import {
   ENTRY_TYPES,
+  formatDate,
+  formatDdMmYyyyHm,
   leaveStatusColor,
   leaveStatusOf,
   sameEmail,
   todayInput,
 } from '../../utils/constants';
+import DatePickerField from '../shared/DatePickerField';
 import LeaveRescheduleModal from './LeaveRescheduleModal';
 import { sendLeaveDecisionEmail } from '../../services/mailService';
 
@@ -116,16 +119,9 @@ export default function WorkLogForm() {
         {error ? <p className="mt-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
         {notice ? <p className="mt-3 rounded bg-emerald-50 p-2 text-sm text-emerald-800">{notice}</p> : null}
 
-        <label className="mt-4 block text-sm">
-          Date
-          <input
-            type="date"
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            required
-          />
-        </label>
+        <div className="mt-4">
+          <DatePickerField label="Date" required value={date} onChange={setDate} />
+        </div>
 
         <label className="mt-3 block text-sm">
           Entry type
@@ -198,7 +194,7 @@ export default function WorkLogForm() {
               {pendingLeaves.map((log) => (
                 <article key={`pending-${log.Log_ID}`} className="rounded border border-amber-100 bg-white p-2 text-sm">
                   <p className="text-xs text-slate-500">
-                    {log.Date} · {log.User_Email}
+                    {formatDate(log.Date)} · {log.User_Email}
                   </p>
                   <p className="mt-1">{log.Leave_Reason}</p>
                   <div className="mt-2 flex gap-2">
@@ -233,7 +229,7 @@ export default function WorkLogForm() {
               <article key={log.Log_ID} className="rounded border border-slate-100 p-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs text-slate-500">
-                    {log.Date} · {log.Entry_Type}
+                    {formatDate(log.Date)} · {log.Entry_Type}
                     {privileges.canViewAllWorklogs ? ` · ${log.User_Email}` : ''}
                   </p>
                   {leaveStatus ? (
@@ -274,7 +270,7 @@ function formatRescheduled(value) {
     const items = JSON.parse(value);
     if (!Array.isArray(items)) return value;
     return items
-      .map((item) => `${item.Session_Title || item.Session_ID} → ${new Date(item.New_Start).toLocaleString()}`)
+      .map((item) => `${item.Session_Title || item.Session_ID} → ${formatDdMmYyyyHm(item.New_Start)}`)
       .join('; ');
   } catch {
     return value;

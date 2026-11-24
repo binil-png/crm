@@ -1,5 +1,6 @@
 import {
   PIPELINE_STATUSES,
+  formatDdMmYyyyHm,
   formatScheduleRelative,
   getCallScheduleState,
   getLeadScheduleAt,
@@ -81,7 +82,7 @@ export default function CallScheduleSidebar({
                           {lead.Status}
                           {lead['Contact Number'] ? ` · ${lead['Contact Number']}` : ''}
                         </p>
-                        <p className="mt-1 text-xs font-medium">{at ? at.toLocaleString() : '—'}</p>
+                        <p className="mt-1 text-xs font-medium">{at ? formatDdMmYyyyHm(at) : '—'}</p>
                         <p className="text-[11px] text-slate-500">{formatScheduleRelative(at, now)}</p>
                       </button>
                       {canEdit && group.id === 'overdue' ? (

@@ -4,11 +4,13 @@ import { useCrmStore } from '../../store/crmStore';
 import {
   findClientForLead,
   findLeadForClient,
+  isCancelledSession,
   isCompletedLead,
   isCompletedLeadDrag,
   leadKey,
   setCompletedLeadDrag,
   normalizeTrainingStatus,
+  sessionCancelReason,
   trainerLabel,
   trainingColor,
 } from '../../utils/constants';
@@ -22,7 +24,7 @@ const readPayload = (event) => {
 };
 
 export default function TrainingDropBox({ leads }) {
-  const { clients, passToTraining } = useCrmStore();
+  const { clients, sessions, passToTraining } = useCrmStore();
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -152,7 +154,11 @@ export default function TrainingDropBox({ leads }) {
           <p className="text-xs text-slate-400">No completed leads have been passed yet.</p>
         ) : (
           <div className="space-y-2">
-            {passed.map((client) => (
+            {passed.map((client) => {
+              const cancelledSessions = sessions.filter(
+                (session) => session.Client_ID === client.Client_ID && isCancelledSession(session)
+              );
+              return (
               <article key={client.Client_ID} className="rounded-lg border border-sky-100 bg-white p-2">
                 <div className="flex items-start justify-between gap-2">
                   <p className="truncate text-sm font-medium">{client.Client_Name}</p>
@@ -168,8 +174,19 @@ export default function TrainingDropBox({ leads }) {
                 ) : (
                   <p className="mt-1 text-[11px] text-amber-700">Waiting for a trainer to pick this up</p>
                 )}
+                {cancelledSessions.length ? (
+                  <div className="mt-2 space-y-1 rounded border border-rose-100 bg-rose-50 p-1.5">
+                    {cancelledSessions.map((session) => (
+                      <p key={session.Session_ID} className="text-[11px] text-rose-800">
+                        Cancelled {session.Session_Title || 'session'}:{' '}
+                        {sessionCancelReason(session) || 'No reason recorded'}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
               </article>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

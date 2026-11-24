@@ -1,4 +1,5 @@
 import { combineDateAndTime, toDateInput, toTimeInput } from '../../utils/constants';
+import DatePickerField from '../shared/DatePickerField';
 
 export default function ScheduleDateTimeFields({
   value,
@@ -12,16 +13,12 @@ export default function ScheduleDateTimeFields({
 
   return (
     <div className="grid gap-3 md:grid-cols-2">
-      <label className="block text-sm">
-        {dateLabel}
-        <input
-          type="date"
-          required={required}
-          className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-          value={dateValue}
-          onChange={(event) => onChange(combineDateAndTime(event.target.value, timeValue))}
-        />
-      </label>
+      <DatePickerField
+        label={dateLabel}
+        required={required}
+        value={dateValue}
+        onChange={(next) => onChange(combineDateAndTime(next, timeValue))}
+      />
       <label className="block text-sm">
         {timeLabel}
         <input

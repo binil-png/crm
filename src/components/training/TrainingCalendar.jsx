@@ -5,17 +5,23 @@ import { useCrmStore } from '../../store/crmStore';
 import {
   TRAINING_STATUSES,
   WORK_TYPES,
+  clientLeadEmail,
   clientWorkType,
+  formatDdMmYyyy,
+  isCancelledSession,
+  isValidLeadEmail,
   listTrainingTeam,
   normalizeTrainingStatus,
   parseSheetDate,
   sameEmail,
+  sessionCancelReason,
   sessionTitleForType,
   sessionWorkType,
   sessionColor,
   trainingColor,
   workTypeColor,
 } from '../../utils/constants';
+import LeadEmailField from './LeadEmailField';
 import TrainerSelect, { ALL_TRAINERS } from './TrainerSelect';
 import TrainerStatusBoard from './TrainerStatusBoard';
 import WorkTypeSelect from './WorkTypeSelect';
@@ -26,6 +32,9 @@ const SLOT_MINUTES = 30;
 const ROW_HEIGHT = 28;
 const DAY_COUNT = 7;
 const DURATIONS = [30, 60, 90];
+const VISIBLE_HOURS = 8;
+const DAY_HEADER_PX = 44;
+const MIN_CALENDAR_PX = VISIBLE_HOURS * (60 / SLOT_MINUTES) * ROW_HEIGHT + DAY_HEADER_PX;
 
 const startOfWeek = (value) => {
   const date = new Date(value);
@@ -93,15 +102,34 @@ const emptyDragImage = () => {
 
 const readDragPayload = (event) => {
   try {
-    return JSON.parse(event.dataTransfer.getData('text/plain') || '{}');
+    const raw =
+      event.dataTransfer.getData('application/json') || event.dataTransfer.getData('text/plain') || '{}';
+    return JSON.parse(raw || '{}');
   } catch {
     return {};
   }
 };
 
+const payloadFromDrop = (event, fallback) => {
+  const fromEvent = readDragPayload(event);
+  if (fromEvent?.kind || fromEvent?.id) return fromEvent;
+  return fallback || {};
+};
+
+const writeDragPayload = (event, payload, effect = 'copy') => {
+  const raw = JSON.stringify(payload);
+  event.dataTransfer.effectAllowed = effect;
+  event.dataTransfer.setData('text/plain', raw);
+  try {
+    event.dataTransfer.setData('application/json', raw);
+  } catch {
+    // Some browsers only allow text/plain during dragstart.
+  }
+};
+
 export default function TrainingCalendar() {
   const { user, privileges } = useAuth();
-  const { clients, sessions, users, scheduleSessions, rescheduleSession } = useCrmStore();
+  const { clients, leads, sessions, users, scheduleSessions, rescheduleSession } = useCrmStore();
   const team = useMemo(
     () => listTrainingTeam({ clients, sessions, users, extra: [user?.email], currentEmail: user?.email }),
     [clients, sessions, users, user?.email]
@@ -122,6 +150,7 @@ export default function TrainingCalendar() {
 
   const previewRef = useRef(null);
   const previewPos = useRef({ x: 0, y: 0 });
+  const dragPayloadRef = useRef(null);
 
   const hoverKey = hoverSlot ? `${hoverSlot.dayKey}-${hoverSlot.hour}-${hoverSlot.minute}` : '';
 
@@ -144,6 +173,7 @@ export default function TrainingCalendar() {
       // Keep the native ghost if the browser rejects a custom drag image.
     }
     previewPos.current = { x: event.clientX, y: event.clientY };
+    dragPayloadRef.current = item;
     setDragItem(item);
     setHoverSlot(null);
   };
@@ -157,6 +187,7 @@ export default function TrainingCalendar() {
   };
 
   const endDrag = () => {
+    dragPayloadRef.current = null;
     setDragItem(null);
     setHoverSlot(null);
   };
@@ -177,7 +208,6 @@ export default function TrainingCalendar() {
 
   const viewTrainer = team.find((member) => sameEmail(member.email, viewEmail));
   const visibleSessions = sessions.filter((session) => {
-    if (session.Status === 'Cancelled') return false;
     if (viewEmail && viewEmail !== ALL_TRAINERS && !sameEmail(session.Trainer_Email, viewEmail)) {
       return false;
     }
@@ -217,7 +247,8 @@ export default function TrainingCalendar() {
         setError('Sign in with a training account before scheduling.');
         return;
       }
-      const sessionType = workType || clientWorkType(client);
+      const sessionType =
+        payload?.workType || (typeFilter !== 'All' ? workType : clientWorkType(client)) || 'Training';
       await scheduleSessions({
         client,
         trainerEmail: trainer,
@@ -239,7 +270,7 @@ export default function TrainingCalendar() {
     }
   };
 
-  const weekLabel = `${days[0].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${days[6].toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  const weekLabel = `${formatDdMmYyyy(days[0])} – ${formatDdMmYyyy(days[6])}`;
   const dragTimeSlot = hoverSlot || (dragItem?.hour != null ? { day: dragItem.day, hour: dragItem.hour, minute: dragItem.minute } : null);
   const dragTimeLabel = dragTimeSlot
     ? `${dragTimeSlot.day ? `${dragTimeSlot.day.toLocaleDateString(undefined, { weekday: 'short' })} ${dragTimeSlot.day.getDate()} · ` : ''}${formatClockRange(
@@ -250,7 +281,7 @@ export default function TrainingCalendar() {
     : 'Drop on a time slot';
 
   return (
-    <section className="flex flex-col gap-4 lg:h-[calc(100vh-8.5rem)]">
+    <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs text-slate-500">
@@ -312,7 +343,10 @@ export default function TrainingCalendar() {
         </div>
       </div>
 
-      <div className="sticky top-28 z-30 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
+      <div
+        className="sticky z-30 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm"
+        style={{ top: 'var(--crm-header-h, 7.5rem)' }}
+      >
         <p className="text-sm font-medium text-slate-700">Training / Doubt clarification</p>
         <WorkTypeSelect
           value={typeFilter}
@@ -341,8 +375,11 @@ export default function TrainingCalendar() {
         onSelect={setViewEmail}
       />
 
-      <div className="grid min-h-0 flex-1 items-stretch gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <aside className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white p-3">
+      <div
+        className="grid min-h-0 items-stretch gap-4 lg:grid-cols-[240px_minmax(0,1fr)]"
+        style={{ minHeight: MIN_CALENDAR_PX, height: `max(${MIN_CALENDAR_PX}px, calc(100vh - 14rem))` }}
+      >
+        <aside className="flex min-h-0 flex-col rounded-lg border border-slate-200 bg-white p-3">
           <p className="text-sm font-medium">Clients to schedule</p>
           <p className="mb-2 text-xs text-slate-500">Drag onto the week, or click to select.</p>
           <label className="mb-3 block text-xs text-slate-600">
@@ -371,29 +408,36 @@ export default function TrainingCalendar() {
               </p>
             ) : null}
             {queue.map((client) => (
-              <ClientChip
-                key={client.Client_ID}
-                client={client}
-                selected={selectedId === client.Client_ID}
-                trainerLabel={
-                  client.Assigned_Trainer
-                    ? team.find((member) => sameEmail(member.email, client.Assigned_Trainer))?.name || client.Assigned_Trainer
-                    : 'Unassigned'
-                }
-                sessionCount={sessions.filter((session) => session.Client_ID === client.Client_ID && session.Status !== 'Cancelled').length}
-                onSelect={() => setSelectedId((id) => (id === client.Client_ID ? '' : client.Client_ID))}
-                onBeginDrag={(event) =>
-                  beginDrag(event, {
-                    kind: 'client',
-                    id: client.Client_ID,
-                    name: client.Client_Name,
-                    workType: workType || clientWorkType(client),
-                    minutes: duration,
-                  })
-                }
-                onMoveDrag={movePreview}
-                onEndDrag={endDrag}
-              />
+              <div key={client.Client_ID}>
+                <ClientChip
+                  client={client}
+                  selected={selectedId === client.Client_ID}
+                  trainerLabel={
+                    client.Assigned_Trainer
+                      ? team.find((member) => sameEmail(member.email, client.Assigned_Trainer))?.name || client.Assigned_Trainer
+                      : 'Unassigned'
+                  }
+                  sessionCount={sessions.filter((session) => session.Client_ID === client.Client_ID).length}
+                  onSelect={() => setSelectedId((id) => (id === client.Client_ID ? '' : client.Client_ID))}
+                  onBeginDrag={(event) =>
+                    beginDrag(event, {
+                      kind: 'client',
+                      id: client.Client_ID,
+                      name: client.Client_Name,
+                      workType: typeFilter !== 'All' ? workType : clientWorkType(client),
+                      minutes: duration,
+                    })
+                  }
+                  onMoveDrag={movePreview}
+                  onEndDrag={endDrag}
+                />
+                {privileges.canSetLeadEmail &&
+                (selectedId === client.Client_ID || !isValidLeadEmail(clientLeadEmail(client, leads))) ? (
+                  <div className="mt-1 mb-1">
+                    <LeadEmailField client={client} compact />
+                  </div>
+                ) : null}
+              </div>
             ))}
           </div>
         </aside>
@@ -441,6 +485,7 @@ export default function TrainingCalendar() {
                 showTrainer={viewEmail === ALL_TRAINERS}
                 currentEmail={user?.email}
                 dragItem={dragItem}
+                dragPayloadRef={dragPayloadRef}
                 onHover={updateHoverSlot}
                 onPlace={(hour, minute, payload) => placeAt(day, hour, minute, payload)}
                 onSelectSession={setActiveSession}
@@ -504,8 +549,8 @@ function ClientChip({ client, selected, sessionCount, trainerLabel, onSelect, on
         }
       }}
       onDragStart={(event) => {
-        event.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'client', id: client.Client_ID }));
-        event.dataTransfer.effectAllowed = 'copy';
+        event.stopPropagation();
+        writeDragPayload(event, { kind: 'client', id: client.Client_ID }, 'copy');
         onBeginDrag(event);
       }}
       onDrag={(event) => onMoveDrag(event.clientX, event.clientY)}
@@ -514,7 +559,7 @@ function ClientChip({ client, selected, sessionCount, trainerLabel, onSelect, on
         selected ? 'border-sky-500 bg-sky-50' : 'border-slate-200 bg-slate-50 hover:border-slate-300'
       }`}
     >
-      <GripVertical size={14} className="mt-1 shrink-0 text-slate-400" />
+      <GripVertical size={14} className="pointer-events-none mt-1 shrink-0 text-slate-400" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{client.Client_Name}</span>
         <span className="block truncate text-xs text-slate-500">{client.Contact_Email || 'No email'}</span>
@@ -550,6 +595,7 @@ function DayColumn({
   showTrainer = false,
   currentEmail = '',
   dragItem,
+  dragPayloadRef,
   onHover,
   onPlace,
   onSelectSession,
@@ -561,7 +607,7 @@ function DayColumn({
     event.preventDefault();
     const slot = slotFromPointer(event, event.currentTarget);
     onHover(null);
-    onPlace(slot.hour, slot.minute, readDragPayload(event));
+    onPlace(slot.hour, slot.minute, payloadFromDrop(event, dragPayloadRef?.current || dragItem));
   };
 
   const hoverThisDay = hoverKey.startsWith(`${day.toDateString()}-`);
@@ -574,6 +620,7 @@ function DayColumn({
       className={`relative border-l border-slate-200 ${isToday ? 'bg-sky-50/40' : ''}`}
       onDragOver={(event) => {
         event.preventDefault();
+        event.dataTransfer.dropEffect = dragItem?.kind === 'session' ? 'move' : 'copy';
         const slot = slotFromPointer(event, event.currentTarget);
         onHover({ day, dayKey: day.toDateString(), hour: slot.hour, minute: slot.minute });
       }}
@@ -603,7 +650,9 @@ function DayColumn({
         const top = (minutesFromStart(start) / SLOT_MINUTES) * ROW_HEIGHT;
         const height = Math.max(ROW_HEIGHT - 4, ((end.getTime() - start.getTime()) / 60000 / SLOT_MINUTES) * ROW_HEIGHT - 4);
         const client = clients.find((item) => item.Client_ID === session.Client_ID);
-        const movable = session.Status !== 'Completed';
+        const cancelled = isCancelledSession(session);
+        const reason = sessionCancelReason(session);
+        const movable = session.Status !== 'Completed' && !cancelled;
         return (
           <button
             key={session.Session_ID}
@@ -614,20 +663,27 @@ function DayColumn({
               onSelectSession(session);
             }}
             onDragStart={(event) => {
-              event.dataTransfer.setData('text/plain', JSON.stringify({ kind: 'session', id: session.Session_ID }));
-              event.dataTransfer.effectAllowed = 'move';
+              if (!movable) {
+                event.preventDefault();
+                return;
+              }
+              event.stopPropagation();
+              writeDragPayload(event, { kind: 'session', id: session.Session_ID }, 'move');
               onBeginSessionDrag(event, session, client);
             }}
             onDrag={(event) => onMoveDrag(event.clientX, event.clientY)}
             onDragEnd={onEndDrag}
-            onDragOver={(event) => event.preventDefault()}
+            onDragOver={(event) => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = dragItem?.kind === 'session' ? 'move' : 'copy';
+            }}
             onDrop={(event) => {
               event.preventDefault();
               event.stopPropagation();
               const column = event.currentTarget.parentElement;
               const slot = slotFromPointer(event, column);
               onHover(null);
-              onPlace(slot.hour, slot.minute, readDragPayload(event));
+              onPlace(slot.hour, slot.minute, payloadFromDrop(event, dragPayloadRef?.current || dragItem));
             }}
             className={`absolute right-1 left-1 z-10 overflow-hidden rounded px-1.5 py-0.5 text-left text-[11px] shadow-sm ${sessionColor(session.Status)} ${
               dragItem?.id === session.Session_ID ? 'opacity-40' : ''
@@ -635,23 +691,31 @@ function DayColumn({
             style={{ top: top + 2, height }}
             title={`${client?.Client_Name || session.Session_Title} · ${sessionWorkType(session)} · ${
               team.find((member) => sameEmail(member.email, session.Trainer_Email))?.name || session.Trainer_Email || 'Unassigned'
-            } · ${formatClock(start.getHours(), start.getMinutes())}–${formatClock(end.getHours(), end.getMinutes())} · ${session.Status}`}
+            } · ${formatClock(start.getHours(), start.getMinutes())}–${formatClock(end.getHours(), end.getMinutes())} · ${session.Status}${
+              cancelled ? ` · ${reason || 'No reason recorded'}` : ''
+            }`}
           >
-            <span className="block truncate font-medium">{client?.Client_Name || session.Session_Title}</span>
+            <span className={`block truncate font-medium ${cancelled ? 'line-through' : ''}`}>
+              {client?.Client_Name || session.Session_Title}
+            </span>
             <span className="block truncate opacity-80">
-              {sessionWorkType(session) === 'Doubt clarification' ? 'Doubt' : 'Training'} ·{' '}
-              {start.getMinutes() === 0
-                ? formatClockLabel(start.getHours(), start.getMinutes())
-                : formatClock(start.getHours(), start.getMinutes())}
-              {showTrainer
-                ? ` · ${
-                    sameEmail(session.Trainer_Email, currentEmail)
-                      ? 'You'
-                      : team.find((member) => sameEmail(member.email, session.Trainer_Email))?.name?.split(' ')[0] ||
-                        session.Trainer_Email ||
-                        '—'
-                  }`
-                : ''}
+              {cancelled
+                ? `Cancelled${reason ? `: ${reason}` : ''}`
+                : `${sessionWorkType(session) === 'Doubt clarification' ? 'Doubt' : 'Training'} · ${
+                    start.getMinutes() === 0
+                      ? formatClockLabel(start.getHours(), start.getMinutes())
+                      : formatClock(start.getHours(), start.getMinutes())
+                  }${
+                    showTrainer
+                      ? ` · ${
+                          sameEmail(session.Trainer_Email, currentEmail)
+                            ? 'You'
+                            : team.find((member) => sameEmail(member.email, session.Trainer_Email))?.name?.split(' ')[0] ||
+                              session.Trainer_Email ||
+                              '—'
+                        }`
+                      : ''
+                  }`}
             </span>
           </button>
         );
@@ -741,12 +805,13 @@ function SessionPopover({ session, client, onClose }) {
         </div>
         <p className="text-sm">
           {start
-            ? `${start.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })} · ${formatClock(start.getHours(), start.getMinutes())}`
+            ? `${formatDdMmYyyy(start)} · ${formatClock(start.getHours(), start.getMinutes())}`
             : '—'}
           {end ? ` – ${formatClock(end.getHours(), end.getMinutes())}` : ''}
         </p>
         <p className="text-sm text-slate-500">{session.Trainer_Email}</p>
         {session.Calendar_ID ? <p className="text-xs text-slate-400">Calendar: {session.Calendar_ID}</p> : null}
+        {client ? <LeadEmailField client={client} /> : null}
         {error ? <p className="mt-2 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
 
         <label className="mt-4 block text-sm">
@@ -783,9 +848,9 @@ function SessionPopover({ session, client, onClose }) {
           </select>
         </label>
 
-        {session.Status === 'Cancelled' && session.Cancel_Reason ? (
+        {isCancelledSession(session) ? (
           <p className="mt-3 rounded border border-rose-100 bg-rose-50 p-2 text-sm text-rose-800">
-            Cancelled: {session.Cancel_Reason}
+            Cancelled: {sessionCancelReason(session) || 'No reason recorded'}
           </p>
         ) : null}
 

@@ -13,6 +13,7 @@ import {
   STATUS_GROUPS,
   appendStageComment,
   findClientForLead,
+  formatDate,
   formatDdMmYyyy,
   formatDdMmYyyyHm,
   formatScheduleRelative,
@@ -332,6 +333,8 @@ export default function LeadKanban() {
                                 readOnly={!privileges.canEditLead}
                                 onChange={changeStatus}
                               />
+                            ) : header === 'Date' ? (
+                              formatDate(lead.Date)
                             ) : (
                               String(lead[header] || '—')
                             )}

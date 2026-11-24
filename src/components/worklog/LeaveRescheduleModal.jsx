@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useCrmStore } from '../../store/crmStore';
-import { formatDateTime, fromLocalInput, toLocalInput } from '../../utils/constants';
+import { formatDate, formatDateTime, fromLocalInput, sameDay, toLocalInput } from '../../utils/constants';
 import Modal from '../shared/Modal';
+import ScheduleDateTimeFields from '../sales/ScheduleDateTimeFields';
 
 export default function LeaveRescheduleModal({ userEmail, date, reason, onClose }) {
   const { sessions, applyLeaveAndReschedule } = useCrmStore();
@@ -10,7 +11,7 @@ export default function LeaveRescheduleModal({ userEmail, date, reason, onClose 
       sessions.filter(
         (session) =>
           session.Trainer_Email === userEmail &&
-          isSameDay(session.Start_Time, date) &&
+          sameDay(session.Start_Time, date) &&
           session.Status !== 'Cancelled' &&
           session.Status !== 'Completed'
       ),
@@ -70,7 +71,7 @@ export default function LeaveRescheduleModal({ userEmail, date, reason, onClose 
   return (
     <Modal title="Leave and reschedule" onClose={onClose} wide>
       <p className="text-sm text-slate-600">
-        Leave on {date} for {userEmail}. Affected training sessions must be moved on Google Calendar before the leave is saved.
+        Leave on {formatDate(date)} for {userEmail}. Affected training sessions must be moved on Google Calendar before the leave is saved.
       </p>
       {error ? <p className="mt-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
 
@@ -84,27 +85,21 @@ export default function LeaveRescheduleModal({ userEmail, date, reason, onClose 
               <p className="text-xs text-slate-500">
                 Current: {formatDateTime(session.Start_Time)} – {formatDateTime(session.End_Time)}
               </p>
-              <div className="mt-2 grid gap-3 md:grid-cols-2">
-                <label className="text-sm">
-                  New start
-                  <input
-                    type="datetime-local"
-                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-                    value={session.newStart}
-                    onChange={(e) => changeTime(session.Session_ID, 'newStart', e.target.value)}
-                    required
-                  />
-                </label>
-                <label className="text-sm">
-                  New end
-                  <input
-                    type="datetime-local"
-                    className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-                    value={session.newEnd}
-                    onChange={(e) => changeTime(session.Session_ID, 'newEnd', e.target.value)}
-                    required
-                  />
-                </label>
+              <div className="mt-2 space-y-3">
+                <ScheduleDateTimeFields
+                  required
+                  value={session.newStart}
+                  onChange={(next) => changeTime(session.Session_ID, 'newStart', next)}
+                  dateLabel="New start date"
+                  timeLabel="New start time"
+                />
+                <ScheduleDateTimeFields
+                  required
+                  value={session.newEnd}
+                  onChange={(next) => changeTime(session.Session_ID, 'newEnd', next)}
+                  dateLabel="New end date"
+                  timeLabel="New end time"
+                />
               </div>
             </div>
           ))}
@@ -123,10 +118,3 @@ export default function LeaveRescheduleModal({ userEmail, date, reason, onClose 
   );
 }
 
-function isSameDay(iso, dateStr) {
-  if (!iso || !dateStr) return false;
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return String(iso).startsWith(dateStr);
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` === dateStr;
-}

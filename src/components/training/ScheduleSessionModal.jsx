@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
 import {
+  clientLeadEmail,
   clientWorkType,
   fromLocalInput,
   listTrainingTeam,
@@ -9,6 +10,8 @@ import {
   toLocalInput,
 } from '../../utils/constants';
 import Modal from '../shared/Modal';
+import ScheduleDateTimeFields from '../sales/ScheduleDateTimeFields';
+import LeadEmailField from './LeadEmailField';
 import TrainerSelect from './TrainerSelect';
 import WorkTypeSelect from './WorkTypeSelect';
 
@@ -21,7 +24,7 @@ const emptySlot = (type, clientName) => ({
 
 export default function ScheduleSessionModal({ client, onClose }) {
   const { user } = useAuth();
-  const { scheduleSessions, clients, sessions, users } = useCrmStore();
+  const { scheduleSessions, clients, leads, sessions, users } = useCrmStore();
   const team = useMemo(
     () =>
       listTrainingTeam({
@@ -38,6 +41,8 @@ export default function ScheduleSessionModal({ client, onClose }) {
   const [slots, setSlots] = useState([emptySlot(clientWorkType(client), client.Client_Name)]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const liveClient = clients.find((item) => item.Client_ID === client.Client_ID) || client;
+  const inviteEmail = clientLeadEmail(liveClient, leads);
 
   const updateSlot = (index, key, value) => {
     setSlots((prev) => prev.map((slot, i) => (i === index ? { ...slot, [key]: value } : slot)));
@@ -53,7 +58,7 @@ export default function ScheduleSessionModal({ client, onClose }) {
     setError('');
     try {
       await scheduleSessions({
-        client,
+        client: liveClient,
         trainerEmail: trainerEmail.trim(),
         workType,
         sessions: slots.map((slot) => ({
@@ -105,12 +110,11 @@ export default function ScheduleSessionModal({ client, onClose }) {
           You are selected by default. Choose another training team member to put the session on their calendar. They
           must share that calendar with you as “Make changes to events”.
         </p>
+        <LeadEmailField client={liveClient} />
         <p className="text-sm text-slate-500">
-          Google Calendar will email an invitation to{' '}
-          <span className="font-medium text-slate-700">
-            {client.Contact_Email || 'the lead’s Email ID on the sales sheet'}
-          </span>
-          .
+          {inviteEmail
+            ? `Google Calendar will email an invitation to ${inviteEmail}.`
+            : 'No lead email ID is on file. The session will still be scheduled; add an email later if you want a calendar invitation sent to the lead.'}
         </p>
 
         {slots.map((slot, index) => (
@@ -135,27 +139,21 @@ export default function ScheduleSessionModal({ client, onClose }) {
                 onChange={(e) => updateSlot(index, 'title', e.target.value)}
               />
             </label>
-            <div className="mt-2 grid gap-3 md:grid-cols-2">
-              <label className="text-sm">
-                Start
-                <input
-                  type="datetime-local"
-                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-                  value={slot.start}
-                  onChange={(e) => updateSlot(index, 'start', e.target.value)}
-                  required
-                />
-              </label>
-              <label className="text-sm">
-                End
-                <input
-                  type="datetime-local"
-                  className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-                  value={slot.end}
-                  onChange={(e) => updateSlot(index, 'end', e.target.value)}
-                  required
-                />
-              </label>
+            <div className="mt-2 space-y-3">
+              <ScheduleDateTimeFields
+                required
+                value={slot.start}
+                onChange={(next) => updateSlot(index, 'start', next)}
+                dateLabel="Start date"
+                timeLabel="Start time"
+              />
+              <ScheduleDateTimeFields
+                required
+                value={slot.end}
+                onChange={(next) => updateSlot(index, 'end', next)}
+                dateLabel="End date"
+                timeLabel="End time"
+              />
             </div>
           </div>
         ))}

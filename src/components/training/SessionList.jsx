@@ -5,9 +5,11 @@ import { useCrmStore } from '../../store/crmStore';
 import {
   WORK_TYPES,
   formatDdMmYyyyHm,
+  isCancelledSession,
   listTrainingTeam,
   normalizeTrainingStatus,
   sameEmail,
+  sessionCancelReason,
   sessionColor,
   sessionWorkType,
   trainingColor,
@@ -18,6 +20,9 @@ import TrainerSelect, { ALL_TRAINERS } from './TrainerSelect';
 export default function SessionList({ clientId, compact = false }) {
   const { user, privileges } = useAuth();
   const { sessions, clients, users, completeSession, updateSession } = useCrmStore();
+  const [cancelingId, setCancelingId] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelError, setCancelError] = useState('');
   const team = useMemo(
     () => listTrainingTeam({ clients, sessions, users, extra: [user?.email], currentEmail: user?.email }),
     [clients, sessions, users, user?.email]
@@ -80,6 +85,7 @@ export default function SessionList({ clientId, compact = false }) {
               <th className="px-3 py-2">Trainer</th>
               <th className="px-3 py-2">Client status</th>
               <th className="px-3 py-2">Session status</th>
+              <th className="px-3 py-2">Cancel reason</th>
               <th className="px-3 py-2">Actions</th>
             </tr>
           </thead>
@@ -87,8 +93,14 @@ export default function SessionList({ clientId, compact = false }) {
             {rows.map((session) => {
               const client = clientFor(session.Client_ID);
               const clientStatus = normalizeTrainingStatus(client?.Training_Status);
+              const cancelled = isCancelledSession(session);
+              const reason = sessionCancelReason(session);
+              const canAct =
+                session.Status !== 'Completed' &&
+                !cancelled &&
+                (privileges.canManageAnySession || sameEmail(session.Trainer_Email, user?.email));
               return (
-                <tr key={session.Session_ID} className="border-t border-slate-100">
+                <tr key={session.Session_ID} className={`border-t border-slate-100 ${cancelled ? 'bg-rose-50/60' : ''}`}>
                   {!compact ? <td className="px-3 py-2">{client?.Client_Name || session.Client_ID}</td> : null}
                   <td className="px-3 py-2">
                     <p>{session.Session_Title}</p>
@@ -113,10 +125,58 @@ export default function SessionList({ clientId, compact = false }) {
                   <td className="px-3 py-2">
                     <span className={`rounded px-2 py-0.5 text-xs ${sessionColor(session.Status)}`}>{session.Status}</span>
                   </td>
+                  <td className="px-3 py-2 text-rose-800">
+                    {cancelled ? reason || 'No reason recorded' : '—'}
+                  </td>
                   <td className="px-3 py-2">
-                    {session.Status !== 'Completed' &&
-                    session.Status !== 'Cancelled' &&
-                    (privileges.canManageAnySession || sameEmail(session.Trainer_Email, user?.email)) ? (
+                    {cancelingId === session.Session_ID ? (
+                      <div className="min-w-[180px]">
+                        <textarea
+                          className="w-full rounded border border-slate-300 px-2 py-1 text-xs"
+                          rows={2}
+                          value={cancelReason}
+                          placeholder="Why is this session being cancelled?"
+                          onChange={(event) => {
+                            setCancelReason(event.target.value);
+                            setCancelError('');
+                          }}
+                        />
+                        {cancelError ? <p className="mt-1 text-xs text-rose-700">{cancelError}</p> : null}
+                        <div className="mt-1 flex gap-1">
+                          <button
+                            type="button"
+                            className="rounded bg-rose-700 px-2 py-1 text-xs text-white"
+                            onClick={async () => {
+                              const nextReason = cancelReason.trim();
+                              if (!nextReason) {
+                                setCancelError('Add a reason for cancelling this session.');
+                                return;
+                              }
+                              await updateSession(session.Session_ID, {
+                                Status: 'Cancelled',
+                                Cancel_Reason: nextReason,
+                              });
+                              setCancelingId('');
+                              setCancelReason('');
+                              setCancelError('');
+                            }}
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded border border-slate-300 px-2 py-1 text-xs"
+                            onClick={() => {
+                              setCancelingId('');
+                              setCancelReason('');
+                              setCancelError('');
+                            }}
+                          >
+                            Back
+                          </button>
+                        </div>
+                      </div>
+                    ) : canAct ? (
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
@@ -131,7 +191,11 @@ export default function SessionList({ clientId, compact = false }) {
                           type="button"
                           title="Cancel session"
                           className="inline-flex items-center gap-1 rounded bg-rose-600 px-2 py-1 text-xs font-medium text-white hover:bg-rose-700"
-                          onClick={() => updateSession(session.Session_ID, { Status: 'Cancelled' })}
+                          onClick={() => {
+                            setCancelingId(session.Session_ID);
+                            setCancelReason('');
+                            setCancelError('');
+                          }}
                         >
                           <X size={12} />
                           Cancel

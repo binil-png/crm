@@ -33,6 +33,7 @@ export const getPrivileges = ({ userType, userRole } = {}) => {
     canEditLead: canViewSales,
     canPassToTraining: canViewSales,
     canAssignTrainer: canViewTraining,
+    canSetLeadEmail: canViewTraining,
     canScheduleSession: canViewTraining,
     canScheduleForOthers: canViewTraining,
     canViewAllTrainers: canViewTraining,

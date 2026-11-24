@@ -96,12 +96,12 @@ export default function LeadModal({ lead, onClose, onCloseDeal, mode = 'full' })
           id: `demo-${lead._sheet}-${lead['Sl No']}`,
           startAt: fromLocalInput(demoStart),
           title: `Demo with ${form['Customer Name']}`,
-          body: `Sales demo at ${formatDdMmYyyyHm(new Date(demoStart))}`,
+          body: `Sales demo at ${formatDdMmYyyyHm(demoStart)}`,
           emails: [user?.email].filter(Boolean),
         }).catch((error) => console.warn(error));
       }
       const note = stageNote || `Status changed to ${status}`;
-      const scheduled = status === 'Demo Scheduled' ? formatDdMmYyyyHm(new Date(demoStart)) : form['Scheduled Date'];
+      const scheduled = status === 'Demo Scheduled' ? formatDdMmYyyyHm(demoStart) : form['Scheduled Date'];
       await persist({ ...form, Status: status, 'Scheduled Date': scheduled }, note);
       setStageNote('');
     } catch (err) {
@@ -230,7 +230,7 @@ export default function LeadModal({ lead, onClose, onCloseDeal, mode = 'full' })
       {scheduleState === 'overdue' ? (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded border border-rose-200 bg-rose-50 p-2 text-sm text-rose-800">
           <p>
-            Overdue: this call was scheduled for {scheduleAt.toLocaleString()} ({formatScheduleRelative(scheduleAt)}).
+            Overdue: this call was scheduled for {formatDdMmYyyyHm(scheduleAt)} ({formatScheduleRelative(scheduleAt)}).
           </p>
           {privileges.canEditLead ? (
             <button
@@ -406,24 +406,18 @@ export default function LeadModal({ lead, onClose, onCloseDeal, mode = 'full' })
         <div className="mt-4 rounded border border-slate-200 p-3">
           <p className="text-sm font-medium">Demo schedule</p>
           <div className="mt-2 grid gap-3 md:grid-cols-2">
-            <label className="text-sm">
-              Start
-              <input
-                type="datetime-local"
-                className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-                value={demoStart}
-                onChange={(e) => setDemoStart(e.target.value)}
-              />
-            </label>
-            <label className="text-sm">
-              End
-              <input
-                type="datetime-local"
-                className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-                value={demoEnd}
-                onChange={(e) => setDemoEnd(e.target.value)}
-              />
-            </label>
+            <ScheduleDateTimeFields
+              value={demoStart}
+              onChange={setDemoStart}
+              dateLabel="Start date"
+              timeLabel="Start time"
+            />
+            <ScheduleDateTimeFields
+              value={demoEnd}
+              onChange={setDemoEnd}
+              dateLabel="End date"
+              timeLabel="End time"
+            />
           </div>
           <label className="mt-3 block text-sm">
             Attendee emails

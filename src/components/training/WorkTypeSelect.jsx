@@ -11,7 +11,7 @@ export default function WorkTypeSelect({
   const current = value === 'All' ? 'All' : normalizeWorkType(value);
 
   return (
-    <div className={`relative z-20 ${compact ? 'flex flex-wrap gap-1' : 'flex flex-wrap gap-2'}`}>
+    <div className={`relative z-30 ${compact ? 'flex flex-wrap gap-1' : 'flex flex-wrap gap-2'}`}>
       {options.map((type) => {
         const active = current === type;
         return (

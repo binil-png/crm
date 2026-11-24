@@ -480,14 +480,49 @@ export const createId = (prefix) =>
 
 export const nowIso = () => new Date().toISOString();
 
-export const todayInput = () => new Date().toISOString().slice(0, 10);
-
 export const pad = (n) => String(n).padStart(2, '0');
 
+export const parseSheetDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  const dmy = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (dmy) {
+    const year = dmy[3].length === 2 ? 2000 + Number(dmy[3]) : Number(dmy[3]);
+    const date = new Date(
+      year,
+      Number(dmy[2]) - 1,
+      Number(dmy[1]),
+      Number(dmy[4] || 0),
+      Number(dmy[5] || 0),
+      Number(dmy[6] || 0)
+    );
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const localIso = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (localIso) {
+    const date = new Date(
+      Number(localIso[1]),
+      Number(localIso[2]) - 1,
+      Number(localIso[3]),
+      Number(localIso[4] || 0),
+      Number(localIso[5] || 0),
+      Number(localIso[6] || 0)
+    );
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const iso = new Date(raw);
+  return Number.isNaN(iso.getTime()) ? null : iso;
+};
+
 export const formatDdMmYyyy = (value = new Date()) => {
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value || '');
-  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
+  const date = value instanceof Date ? value : parseSheetDate(value);
+  if (!date || Number.isNaN(date.getTime())) return String(value || '');
+  return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`;
 };
 
 export const formatDdMmYyyyHm = (value = new Date()) => {
@@ -495,6 +530,8 @@ export const formatDdMmYyyyHm = (value = new Date()) => {
   if (!date) return String(value || '');
   return `${formatDdMmYyyy(date)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
+
+export const todayInput = () => formatDdMmYyyy(new Date());
 
 export const CALL_SOON_MS = 5 * 60 * 1000;
 
@@ -553,6 +590,12 @@ export const toLocalInput = (value) => {
 export const toDateInput = (value) => {
   const date = value instanceof Date ? value : parseSheetDate(value);
   if (!date) return '';
+  return formatDdMmYyyy(date);
+};
+
+export const toNativeDateValue = (value) => {
+  const date = value instanceof Date ? value : parseSheetDate(value);
+  if (!date) return '';
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 };
 
@@ -566,48 +609,36 @@ export const toTimeInput = (value) => {
 
 export const combineDateAndTime = (dateInput, timeInput) => {
   if (!dateInput && !timeInput) return '';
-  const datePart = dateInput || toDateInput(new Date());
-  const [year, month, day] = datePart.split('-').map(Number);
-  if (!timeInput) return formatDdMmYyyy(new Date(year, month - 1, day));
-  const [hour = 0, minute = 0] = timeInput.split(':').map(Number);
-  return formatDdMmYyyyHm(new Date(year, month - 1, day, hour, minute));
+  const datePart = dateInput || formatDdMmYyyy(new Date());
+  const parsed = parseSheetDate(timeInput ? `${datePart} ${timeInput}` : datePart);
+  if (!parsed) return datePart;
+  return timeInput ? formatDdMmYyyyHm(parsed) : formatDdMmYyyy(parsed);
 };
 
-export const fromLocalInput = (value) => (value ? new Date(value).toISOString() : '');
-
-export const parseSheetDate = (value) => {
-  if (!value) return null;
-  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
-  const raw = String(value).trim();
-  const iso = new Date(raw);
-  if (!Number.isNaN(iso.getTime()) && !/^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(raw)) return iso;
-  const match = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+(\d{1,2}):(\d{2}))?/);
-  if (!match) return Number.isNaN(iso.getTime()) ? null : iso;
-  const [, d, m, y, hh = '0', mm = '0'] = match;
-  const year = y.length === 2 ? 2000 + Number(y) : Number(y);
-  const date = new Date(year, Number(m) - 1, Number(d), Number(hh), Number(mm));
-  return Number.isNaN(date.getTime()) ? null : date;
+export const fromLocalInput = (value) => {
+  const date = parseSheetDate(value);
+  return date ? date.toISOString() : '';
 };
 
 export const formatDateTime = (value) => {
   if (!value) return '—';
   const date = parseSheetDate(value);
   if (!date) return String(value);
-  return date.toLocaleString();
+  return formatDdMmYyyyHm(date);
 };
 
 export const formatDate = (value) => {
   if (!value) return '—';
   const date = parseSheetDate(value);
   if (!date) return String(value);
-  return date.toLocaleDateString();
+  return formatDdMmYyyy(date);
 };
 
-export const sameDay = (iso, dateStr) => {
-  if (!iso || !dateStr) return false;
-  const date = parseSheetDate(iso);
-  if (!date) return String(iso).startsWith(dateStr);
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` === dateStr;
+export const sameDay = (left, right) => {
+  const a = parseSheetDate(left);
+  const b = parseSheetDate(right);
+  if (!a || !b) return false;
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 };
 
 export const getTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -710,6 +741,10 @@ export const sessionColor = (status) => {
   return map[status] || 'bg-slate-100 text-slate-700';
 };
 
+export const isCancelledSession = (session) => String(session?.Status || '').trim() === 'Cancelled';
+
+export const sessionCancelReason = (session) => String(session?.Cancel_Reason || '').trim();
+
 export const nextPipelineStatus = (status) => (STATUS_NEXT[normalizeStatus(status)] || [])[0] || status;
 
 export const nextSalesActions = (status) => STATUS_NEXT[normalizeStatus(status)] || [];
@@ -811,4 +846,14 @@ export const findLeadForClient = (leads = [], client) => {
     ) ||
     null
   );
+};
+
+export const clientLeadEmail = (client, leads = []) =>
+  String(client?.Contact_Email || findLeadForClient(leads, client)?.['Email ID'] || '')
+    .trim()
+    .toLowerCase();
+
+export const isValidLeadEmail = (value) => {
+  const email = String(value || '').trim();
+  return email.includes('@') && email.includes('.');
 };

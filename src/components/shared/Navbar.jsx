@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { LogOut, RefreshCw, UserRound } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
@@ -19,9 +20,25 @@ export default function Navbar() {
   const { user, role, userType, userRole, privileges, isRegistered, switchRole, logout, registration } = useAuth();
   const { refreshAll, loading, syncing, lastSyncedAt } = useCrmStore();
   const now = useNow(10000);
+  const headerRef = useRef(null);
+
+  useEffect(() => {
+    const node = headerRef.current;
+    if (!node) return undefined;
+    const apply = () => {
+      document.documentElement.style.setProperty('--crm-header-h', `${Math.round(node.getBoundingClientRect().height)}px`);
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty('--crm-header-h');
+    };
+  }, [registration?.email, userType, userRole, role]);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white">
+    <header ref={headerRef} className="sticky top-0 z-40 border-b border-slate-200 bg-white">
       {registration?.email ? (
         <p className="border-b border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-800">
           {isDemoMode()

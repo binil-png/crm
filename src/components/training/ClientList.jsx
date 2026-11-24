@@ -15,6 +15,7 @@ import {
   trainingColor,
   workTypeColor,
 } from '../../utils/constants';
+import LeadEmailField from './LeadEmailField';
 import ScheduleSessionModal from './ScheduleSessionModal';
 import SessionList from './SessionList';
 import TrainerSelect, { ALL_TRAINERS } from './TrainerSelect';
@@ -202,6 +203,12 @@ export default function ClientList() {
                   <span className={`rounded px-2 py-0.5 text-xs ${trainingColor(status)}`}>{status}</span>
                 </div>
               </div>
+
+              {privileges.canSetLeadEmail && canEditClient ? (
+                <div className="max-w-md">
+                  <LeadEmailField client={client} />
+                </div>
+              ) : null}
 
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 <label className="text-sm">

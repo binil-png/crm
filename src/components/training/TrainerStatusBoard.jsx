@@ -1,4 +1,5 @@
 import {
+  isCancelledSession,
   isTrainingCompleted,
   isTrainingNotStarted,
   isTrainingOngoing,
@@ -48,12 +49,13 @@ export default function TrainerStatusBoard({
           Ongoing: row.clients.filter(isTrainingOngoing).length,
           Completed: row.clients.filter(isTrainingCompleted).length,
         };
-        const sessionCount = sessions.filter(
+        const trainerSessions = sessions.filter(
           (session) =>
-            session.Status !== 'Cancelled' &&
-            (row.key === ALL_TRAINERS ||
-              (row.key === 'unassigned' ? false : sameEmail(session.Trainer_Email, row.email)))
-        ).length;
+            row.key === ALL_TRAINERS ||
+            (row.key === 'unassigned' ? false : sameEmail(session.Trainer_Email, row.email))
+        );
+        const sessionCount = trainerSessions.length;
+        const cancelledCount = trainerSessions.filter(isCancelledSession).length;
         const active = selectedEmail === row.key;
         return (
           <button
@@ -76,6 +78,11 @@ export default function TrainerStatusBoard({
                   {status} {count}
                 </span>
               ))}
+              {row.key !== 'unassigned' && cancelledCount > 0 ? (
+                <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] text-rose-800">
+                  Cancelled {cancelledCount}
+                </span>
+              ) : null}
             </div>
           </button>
         );

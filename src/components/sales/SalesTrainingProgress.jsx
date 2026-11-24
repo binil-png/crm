@@ -8,13 +8,15 @@ import {
   clientWorkType,
   findLeadForClient,
   formatDate,
+  isCancelledSession,
   listTrainingTeam,
   normalizeTrainingStatus,
   sameEmail,
+  sessionCancelReason,
   trainerLabel,
   trainingColor,
 } from '../../utils/constants';
-import TrainerSelect, { ALL_TRAINERS } from '../training/TrainerSelect';
+import { ALL_TRAINERS } from '../training/TrainerSelect';
 
 const PROGRESS_GROUPS = [
   {
@@ -74,15 +76,37 @@ export default function SalesTrainingProgress({ compact = false, ribbon = false 
           workType: clientWorkType(client),
           executive: String(lead?.Executive || '').trim(),
           trainer: String(client.Assigned_Trainer || '').trim(),
+          cancelledSessions: sessions.filter(
+            (session) => session.Client_ID === client.Client_ID && isCancelledSession(session)
+          ),
         };
       }),
-    [mine, leads]
+    [mine, leads, sessions]
   );
 
   const executives = useMemo(
     () => [...new Set(rows.map((row) => row.executive).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
     [rows]
   );
+
+  const trainerNameOf = (email) => {
+    if (!email) return '';
+    const member = team.find((item) => sameEmail(item.email, email));
+    if (member?.name) return member.name;
+    const labeled = trainerLabel(email);
+    return labeled === email ? email : labeled.replace(/\s*\([^)]*\)\s*$/, '');
+  };
+
+  const trainerNames = useMemo(() => {
+    const map = new Map();
+    rows.forEach((row) => {
+      if (!row.trainer) return;
+      const key = row.trainer.toLowerCase();
+      if (map.has(key)) return;
+      map.set(key, { email: row.trainer, name: trainerNameOf(row.trainer) || row.trainer });
+    });
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [rows, team]);
 
   const grouped = useMemo(
     () =>
@@ -187,18 +211,22 @@ export default function SalesTrainingProgress({ compact = false, ribbon = false 
                 ))}
               </select>
             </label>
-            <div className="text-xs font-medium text-slate-600">
-              <TrainerSelect
-                compact
-                allowAll
-                allowUnassigned
-                label="Trainer"
+            <label className="text-xs font-medium text-slate-600">
+              Trainer name
+              <select
+                className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-normal text-slate-800"
                 value={trainer}
-                onChange={setTrainer}
-                team={team}
-                currentEmail={user?.email}
-              />
-            </div>
+                onChange={(event) => setTrainer(event.target.value)}
+              >
+                <option value={ALL_TRAINERS}>All trainer names</option>
+                <option value="unassigned">Unassigned</option>
+                {trainerNames.map((item) => (
+                  <option key={item.email} value={item.email}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="text-xs font-medium text-slate-600">
               Executive
               <select
@@ -226,13 +254,14 @@ export default function SalesTrainingProgress({ compact = false, ribbon = false 
                   <th className="border border-slate-300 px-3 py-2">Work type</th>
                   <th className="border border-slate-300 px-3 py-2">Status</th>
                   <th className="border border-slate-300 px-3 py-2">Trainer</th>
+                  <th className="border border-slate-300 px-3 py-2">Cancelled sessions</th>
                   <th className="border border-slate-300 px-3 py-2">Completed</th>
                 </tr>
               </thead>
               <tbody>
                 {visible.length === 0 ? (
                   <tr>
-                    <td className="border border-slate-300 px-3 py-6 text-center text-slate-500" colSpan={7}>
+                    <td className="border border-slate-300 px-3 py-6 text-center text-slate-500" colSpan={8}>
                       No clients match these filters.
                     </td>
                   </tr>
@@ -252,7 +281,28 @@ export default function SalesTrainingProgress({ compact = false, ribbon = false 
                         <span className={`rounded px-1.5 py-0.5 text-xs ${trainingColor(row.status)}`}>{row.title}</span>
                       </td>
                       <td className="border border-slate-300 px-3 py-2">
-                        {row.trainer ? trainerLabel(row.trainer) : 'Waiting for a trainer'}
+                        {row.trainer ? (
+                          <div>
+                            <p className="font-medium">{trainerNameOf(row.trainer)}</p>
+                            <p className="text-xs text-slate-500">{row.trainer}</p>
+                          </div>
+                        ) : (
+                          'Waiting for a trainer'
+                        )}
+                      </td>
+                      <td className="border border-slate-300 px-3 py-2 text-rose-800">
+                        {row.cancelledSessions.length ? (
+                          <div className="space-y-1">
+                            {row.cancelledSessions.map((session) => (
+                              <p key={session.Session_ID}>
+                                {session.Session_Title || 'Session'}:{' '}
+                                {sessionCancelReason(session) || 'No reason recorded'}
+                              </p>
+                            ))}
+                          </div>
+                        ) : (
+                          '—'
+                        )}
                       </td>
                       <td className="border border-slate-300 px-3 py-2 text-slate-600">
                         {row.status === 'Completed' ? formatDate(row.client.Completed_Date) : '—'}
