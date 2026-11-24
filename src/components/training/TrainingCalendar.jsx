@@ -250,7 +250,7 @@ export default function TrainingCalendar() {
     : 'Drop on a time slot';
 
   return (
-    <section className="space-y-4">
+    <section className="flex flex-col gap-4 lg:h-[calc(100vh-8.5rem)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs text-slate-500">
@@ -341,8 +341,8 @@ export default function TrainingCalendar() {
         onSelect={setViewEmail}
       />
 
-      <div className="grid items-start gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <aside className="rounded-lg border border-slate-200 bg-white p-3 lg:sticky lg:top-40">
+      <div className="grid min-h-0 flex-1 items-stretch gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <aside className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white p-3">
           <p className="text-sm font-medium">Clients to schedule</p>
           <p className="mb-2 text-xs text-slate-500">Drag onto the week, or click to select.</p>
           <label className="mb-3 block text-xs text-slate-600">
@@ -364,7 +364,7 @@ export default function TrainingCalendar() {
               ))}
             </select>
           </label>
-          <div className="max-h-[420px] space-y-2 overflow-auto lg:max-h-[70vh]">
+          <div className="min-h-0 flex-1 space-y-2 overflow-auto">
             {queue.length === 0 ? (
               <p className="rounded border border-dashed border-slate-300 p-3 text-sm text-slate-500">
                 No open clients. Sales can pass a closed account to this queue.
@@ -398,7 +398,7 @@ export default function TrainingCalendar() {
           </div>
         </aside>
 
-        <div className="max-h-[calc(100vh-18rem)] overflow-auto rounded-lg border border-slate-300 bg-white">
+        <div className="min-h-0 overflow-auto rounded-lg border border-slate-300 bg-white">
           <div className="grid min-w-[900px]" style={{ gridTemplateColumns: `56px repeat(${DAY_COUNT}, minmax(0, 1fr))` }}>
             <div className="sticky top-0 z-10 border-b border-slate-300 bg-slate-50" />
             {days.map((day) => (
