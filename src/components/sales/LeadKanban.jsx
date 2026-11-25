@@ -36,6 +36,7 @@ import Modal from '../shared/Modal';
 import Drawer from '../shared/Drawer';
 
 const PAGE_SIZE = 50;
+const SALES_TABLE_HEADERS = ['Comments', 'Sheet', ...LEAD_HEADERS.filter((header) => header !== 'Comments')];
 
 export default function LeadKanban() {
   const { user, privileges, directory } = useAuth();
@@ -283,9 +284,7 @@ export default function LeadKanban() {
         <table className="w-max min-w-full border-collapse text-left text-sm">
           <thead className="sticky top-0 bg-slate-50 text-xs uppercase text-slate-500">
             <tr>
-              <th className="w-8 border border-slate-300 px-1 py-2" title="Pass to training" />
-              <th className="border border-slate-300 px-3 py-2.5">Sheet</th>
-              {LEAD_HEADERS.map((header) => (
+              {SALES_TABLE_HEADERS.map((header) => (
                 <th key={header} className="whitespace-nowrap border border-slate-300 px-3 py-2.5">
                   {header === 'Scheduled Date' ? 'Schedule' : header}
                 </th>
@@ -312,35 +311,19 @@ export default function LeadKanban() {
                   }}
                 >
                   {index === 0
-                    ? ['Pass', 'Sheet', ...LEAD_HEADERS].map((header) =>
-                        header === 'Pass' ? (
-                          <td
-                            key="Pass"
-                            rowSpan={span}
-                            className="w-8 border border-slate-300 px-1 py-2 align-top"
-                          >
-                            {canPass ? (
-                              <span
-                                draggable
-                                title="Drag this completed lead to training"
-                                className="inline-flex cursor-grab rounded p-0.5 text-emerald-700 active:cursor-grabbing"
-                                onClick={(event) => event.stopPropagation()}
-                                onDragStart={(event) => {
-                                  skipRowClick.current = true;
-                                  setCompletedLeadDrag(event, lead);
-                                  setDrawerTab('training');
-                                  setDrawerOpen(true);
-                                }}
-                              >
-                                <GripVertical size={16} />
-                              </span>
-                            ) : null}
-                          </td>
-                        ) : header === 'Comments' ? (
+                    ? SALES_TABLE_HEADERS.map((header) =>
+                        header === 'Comments' ? (
                           <CommentCell
                             key={`${leadKey(lead)}-c-${index}`}
                             comment={comment}
                             onOpen={(event) => openComments(event, lead)}
+                            canPass={canPass}
+                            onPassDrag={(event) => {
+                              skipRowClick.current = true;
+                              setCompletedLeadDrag(event, lead);
+                              setDrawerTab('training');
+                              setDrawerOpen(true);
+                            }}
                           />
                         ) : (
                           <td
@@ -382,7 +365,7 @@ export default function LeadKanban() {
             })}
             {rows.length === 0 ? (
               <tr>
-                <td className="border border-slate-300 px-3 py-6 text-slate-500" colSpan={LEAD_HEADERS.length + 2}>
+                <td className="border border-slate-300 px-3 py-6 text-slate-500" colSpan={SALES_TABLE_HEADERS.length}>
                   No leads match these filters.
                 </td>
               </tr>
@@ -517,14 +500,27 @@ export default function LeadKanban() {
   );
 }
 
-function CommentCell({ comment, onOpen }) {
+function CommentCell({ comment, onOpen, canPass = false, onPassDrag }) {
   return (
     <td
       className="min-w-[280px] max-w-[420px] cursor-pointer whitespace-pre-wrap border border-slate-300 px-2 py-2 align-top hover:bg-sky-50"
       title="View comments"
       onClick={onOpen}
     >
-      {comment.raw}
+      <div className="flex items-start gap-1">
+        {canPass ? (
+          <span
+            draggable
+            title="Drag this completed lead to training"
+            className="mt-0.5 inline-flex cursor-grab rounded p-0.5 text-emerald-700 active:cursor-grabbing"
+            onClick={(event) => event.stopPropagation()}
+            onDragStart={onPassDrag}
+          >
+            <GripVertical size={16} />
+          </span>
+        ) : null}
+        <span className="min-w-0 flex-1">{comment.raw}</span>
+      </div>
     </td>
   );
 }
