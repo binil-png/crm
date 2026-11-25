@@ -44,7 +44,7 @@ export default function SetupScreen({ onSaved }) {
     <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
       <div className="w-full max-w-3xl rounded-lg border border-slate-200 bg-white p-6">
         <h1 className="text-xl font-semibold">Sheets CRM</h1>
-        <p className="mt-2 text-sm text-slate-600">Choose how this CRM stores data.</p>
+        <p className="mt-1 text-sm text-slate-500">Choose a data source.</p>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <button
@@ -57,9 +57,7 @@ export default function SetupScreen({ onSaved }) {
               <CalendarDays size={18} />
               <h2 className="font-semibold">Google Sheets and Calendar</h2>
             </div>
-            <p className="mt-2 text-sm text-slate-600">
-              Live data from your form Google Sheets. Sales calls and training sessions go to Google Calendar.
-            </p>
+            <p className="mt-2 text-sm text-slate-600">Google Sheets and Calendar.</p>
           </button>
 
           <button
@@ -71,10 +69,7 @@ export default function SetupScreen({ onSaved }) {
               <Database size={18} />
               <h2 className="font-semibold">Local setup</h2>
             </div>
-            <p className="mt-2 text-sm text-slate-600">
-              Test in this browser only. Sample leads, users, training, and work logs stay in localStorage. No Google
-              connection.
-            </p>
+            <p className="mt-2 text-sm text-slate-600">Sample data in this browser.</p>
           </button>
         </div>
 
@@ -89,7 +84,7 @@ export default function SetupScreen({ onSaved }) {
               placeholder="xxxx.apps.googleusercontent.com"
             />
 
-            <label className="mt-4 block text-sm font-medium">Google API Key (optional — never paste GOCSPX- client secret)</label>
+            <label className="mt-4 block text-sm font-medium">Google API Key (optional)</label>
             <input
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
               value={apiKey}
@@ -102,12 +97,8 @@ export default function SetupScreen({ onSaved }) {
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
               value={configSpreadsheetId}
               onChange={(e) => setConfigSpreadsheetId(e.target.value)}
-              placeholder="Google Sheet that stores Sales, Training, and User details IDs"
+              placeholder="Configuration spreadsheet ID"
             />
-            <p className="mt-1 text-xs text-slate-500">
-              Required. This sheet’s Workbook_Config tab stores the three data spreadsheet IDs. Put
-              VITE_GOOGLE_CONFIG_SPREADSHEET_ID in .env, or paste the ID here.
-            </p>
 
             <label className="mt-4 block text-sm font-medium">Sales spreadsheet ID</label>
             <input
@@ -132,11 +123,6 @@ export default function SetupScreen({ onSaved }) {
               onChange={(e) => setEmployeesSpreadsheetId(e.target.value)}
               placeholder="Users tab only"
             />
-            <p className="mt-1 text-xs text-slate-500">
-              Use a different spreadsheet for each of these three. After sign-in, Admin can change the IDs; they
-              are saved on the configuration sheet, not in the data workbooks.
-            </p>
-
             <label className="mt-4 block text-sm font-medium">Calendar ID</label>
             <input
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
@@ -144,13 +130,8 @@ export default function SetupScreen({ onSaved }) {
               onChange={(e) => setCalendarId(e.target.value)}
               placeholder="primary"
             />
-            <p className="mt-1 text-xs text-slate-500">
-              Use primary for the signed-in calendar, or a shared calendar ID. Training sessions can also use each user’s
-              Calendar ID on the Users sheet.
-            </p>
-
             <button type="button" onClick={saveGoogle} className="mt-5 rounded bg-slate-900 px-4 py-2 text-white">
-              Connect Google Sheets and Calendar
+              Connect Google
             </button>
           </div>
         ) : null}

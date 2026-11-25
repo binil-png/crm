@@ -39,24 +39,13 @@ export default function Navbar() {
 
   return (
     <header ref={headerRef} className="sticky top-0 z-40 border-b border-slate-200 bg-white">
-      {registration?.email ? (
-        <p className="border-b border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-800">
-          {isDemoMode()
-            ? `Registered in localStorage test data: ${registration.username} (${registration.email})`
-            : `Registered in the app and on the Users Google Sheet: ${registration.username} (${registration.email})`}
-        </p>
-      ) : null}
-      <div className="px-3 py-2.5">
-        <div className="flex items-center justify-between gap-3">
+      <div className="px-4 py-3 sm:px-6">
+        <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-sm font-semibold leading-5">Sheets CRM</p>
-            <p className="text-xs leading-4 text-slate-500">
-              {isDemoMode()
-                ? 'LocalStorage test data · configuration from Google Sheet'
-                : 'Google Sheets + Calendar, no backend'}
-            </p>
+            <p className="text-sm font-semibold">Sheets CRM</p>
+            <p className="text-xs text-slate-500">{isDemoMode() ? 'Demo' : 'Live'}</p>
           </div>
-          <div className="flex shrink-0 items-center gap-3">
+          <div className="flex shrink-0 items-center gap-4">
             <PushPrompt />
             <p className="hidden text-xs text-slate-500 sm:block">
               {syncing && !loading ? 'Updating…' : formatSynced(lastSyncedAt, now)}
@@ -95,7 +84,7 @@ export default function Navbar() {
             </button>
           </div>
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
           <p className="inline-flex h-7 items-center text-slate-500">
             Team <span className="ml-1 font-medium text-slate-800">{userType}</span>
           </p>

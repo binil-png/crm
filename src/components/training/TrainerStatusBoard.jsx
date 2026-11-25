@@ -69,7 +69,7 @@ export default function TrainerStatusBoard({
           >
             <p className="truncate text-sm font-medium">{row.name}</p>
             {row.email ? <p className="truncate text-[11px] text-slate-500">{row.email}</p> : null}
-            {row.calendarId ? (
+            {row.calendarId && row.calendarId !== row.email ? (
               <p className="truncate text-[11px] text-slate-400">Calendar: {row.calendarId}</p>
             ) : null}
             <p className="mt-2 text-xs text-slate-600">

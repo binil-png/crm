@@ -51,19 +51,19 @@ export default function App() {
   const salesTabs = [
     { id: 'main', label: 'Leads' },
     { id: 'training-progress', label: 'Training progress' },
-    { id: 'messages', label: 'Interaction History' },
+    { id: 'messages', label: 'Interactions' },
   ];
   const trainingTabs = [
     { id: 'main', label: 'Calendar' },
-    { id: 'clients', label: 'Passed clients' },
+    { id: 'clients', label: 'Clients' },
     { id: 'sessions', label: 'Sessions' },
-    { id: 'worklog', label: 'Work log / Leave' },
-    { id: 'messages', label: 'Interaction History' },
+    { id: 'worklog', label: 'Work log' },
+    { id: 'messages', label: 'Interactions' },
   ];
   const configTabs = [
     ...(privileges.canViewUsers ? [{ id: 'users', label: 'Users' }] : []),
-    ...(privileges.canManageSheets ? [{ id: 'sheets', label: 'Google sheets' }] : []),
-    ...(privileges.admin ? [{ id: 'worklog', label: 'Work log / Leave' }] : []),
+    ...(privileges.canManageSheets ? [{ id: 'sheets', label: 'Sheets' }] : []),
+    ...(privileges.admin ? [{ id: 'worklog', label: 'Work log' }] : []),
   ];
   const tabs =
     role === ROLES.CONFIG ? configTabs : role === ROLES.SALES ? salesTabs : trainingTabs;
@@ -71,9 +71,9 @@ export default function App() {
   return (
     <div className="min-h-screen">
       <Navbar />
-      <main className="w-full min-w-0 max-w-full overflow-x-hidden px-3 py-4">
+      <main className="w-full min-w-0 max-w-full overflow-x-hidden px-4 py-5 sm:px-6">
         {error || dataError ? (
-          <p className="mb-4 rounded bg-rose-50 p-3 text-sm text-rose-700">{error || dataError}</p>
+          <p className="mb-4 rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error || dataError}</p>
         ) : null}
 
         <div className="mb-5 flex flex-wrap gap-2">
@@ -90,16 +90,10 @@ export default function App() {
         </div>
 
         {role === ROLES.CONFIG ? (
-          <div className="mb-4">
-            <h1 className="text-lg font-semibold">Configuration</h1>
-            <p className="text-sm text-slate-500">
-              User management, Google sheet accounts, and admin work-log review live here, not in Sales or
-              Technical support.
-            </p>
-          </div>
+          <h1 className="mb-4 text-lg font-semibold">Configuration</h1>
         ) : null}
 
-        {loading ? <p className="mb-4 text-sm text-slate-500">Syncing Google data…</p> : null}
+        {loading ? <p className="mb-4 text-sm text-slate-500">Syncing…</p> : null}
 
         {role === ROLES.SALES && tab === 'main' ? <LeadKanban /> : null}
         {role === ROLES.SALES && tab === 'training-progress' ? <SalesTrainingProgress /> : null}
@@ -107,7 +101,7 @@ export default function App() {
         {role === ROLES.TRAINING && tab === 'clients' ? <ClientList /> : null}
         {role === ROLES.TRAINING && tab === 'sessions' ? (
           <section>
-            <h2 className="mb-3 text-lg font-semibold">Training and doubt clarification sessions</h2>
+            <h2 className="mb-4 text-lg font-semibold">Sessions</h2>
             <SessionList />
           </section>
         ) : null}

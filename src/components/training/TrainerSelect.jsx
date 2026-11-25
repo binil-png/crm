@@ -33,10 +33,8 @@ export default function TrainerSelect({
           </option>
         ))}
       </select>
-      {selected?.calendarId && value !== ALL_TRAINERS ? (
-        <span className={`mt-1 block ${compact ? 'text-[11px]' : 'text-xs'} text-slate-500`}>
-          {sameEmail(selected.email, currentEmail) ? 'Your calendar' : 'Calendar'}: {selected.calendarId}
-        </span>
+      {!compact && selected?.calendarId && value !== ALL_TRAINERS ? (
+        <span className="mt-1 block text-xs text-slate-500">Calendar: {selected.calendarId}</span>
       ) : null}
     </label>
   );

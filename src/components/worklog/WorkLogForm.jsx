@@ -110,12 +110,7 @@ export default function WorkLogForm() {
   return (
     <section className="grid gap-4 lg:grid-cols-2">
       <form onSubmit={submit} className="rounded-lg border border-slate-200 bg-white p-4">
-        <h2 className="text-lg font-semibold">Daily work log & leave</h2>
-        {privileges.canViewAllWorklogs ? (
-          <p className="mt-1 text-sm text-slate-500">
-            Admins can review every staff work log and approve or reject leave requests.
-          </p>
-        ) : null}
+        <h2 className="text-lg font-semibold">Work log</h2>
         {error ? <p className="mt-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
         {notice ? <p className="mt-3 rounded bg-emerald-50 p-2 text-sm text-emerald-800">{notice}</p> : null}
 

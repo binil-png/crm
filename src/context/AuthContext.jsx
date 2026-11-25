@@ -245,7 +245,7 @@ export function AuthProvider({ children }) {
     disableLocalDemo();
     const cfg = getConfig();
     if (!cfg.clientId || !cfg.configSpreadsheetId) {
-      setError('Add a Google OAuth client ID and configuration spreadsheet ID first.');
+      setError('Add a Google Client ID and config sheet ID first.');
       return;
     }
     googleLogin();

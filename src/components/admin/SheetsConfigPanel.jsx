@@ -94,9 +94,7 @@ export default function SheetsConfigPanel() {
         employeesSpreadsheetId: next.employeesSpreadsheetId || '',
       });
       setConfigHost(next.configSpreadsheetId || form.configSpreadsheetId);
-      setNotice(
-        'Sales, Training, and User details spreadsheet IDs were saved to Workbook_Config on the configuration Google Sheet, including in localStorage mode.'
-      );
+      setNotice('Saved.');
     } catch (err) {
       setError(err.message || 'Could not save Google sheet details.');
     } finally {
@@ -106,14 +104,10 @@ export default function SheetsConfigPanel() {
 
   return (
     <section>
-      <h2 className="text-lg font-semibold">Google sheets</h2>
-      <p className="mb-4 text-sm text-slate-500">
-        Leads, training records, and user details each live in their own Google spreadsheet. This configuration
-        spreadsheet only stores those three spreadsheet IDs on the Workbook_Config tab.
-      </p>
+      <h2 className="mb-4 text-lg font-semibold">Sheets</h2>
       {configHost ? (
         <p className="mb-4 text-xs text-slate-500">
-          Config storage spreadsheet: <span className="font-mono">{configHost}</span>
+          Config: <span className="font-mono">{configHost}</span>
         </p>
       ) : null}
       {error ? <p className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
@@ -124,7 +118,7 @@ export default function SheetsConfigPanel() {
         <div className="mt-3 max-w-xl">
           <Field
             label="Spreadsheet ID"
-            hint="Workbook_Config on this sheet is the registry of Sales, Training, and User details spreadsheet IDs. Set VITE_GOOGLE_CONFIG_SPREADSHEET_ID in .env, or paste the ID here."
+            hint="Stores Sales, Training, and User spreadsheet IDs."
             value={form.configSpreadsheetId}
             onChange={(value) => setField('configSpreadsheetId', value)}
             placeholder="Configuration spreadsheet ID"
@@ -137,17 +131,17 @@ export default function SheetsConfigPanel() {
           <h3 className="text-sm font-semibold">Sales data</h3>
           <Field
             label="Google account"
-            hint="Owner or editor Gmail for the sales workbook."
+            hint="Owner Gmail."
             value={form.salesAccount}
             onChange={(value) => setField('salesAccount', value)}
             placeholder="sales-owner@example.com"
           />
           <Field
             label="Spreadsheet ID"
-            hint="Paste the ID or the full Google Sheets URL."
+            hint="ID or sheet URL."
             value={form.spreadsheetId}
             onChange={(value) => setField('spreadsheetId', value)}
-            placeholder="Sales spreadsheet — leads and interaction history"
+            placeholder="Sales spreadsheet ID"
           />
         </div>
 
@@ -155,17 +149,17 @@ export default function SheetsConfigPanel() {
           <h3 className="text-sm font-semibold">Training data</h3>
           <Field
             label="Google account"
-            hint="Owner or editor Gmail for the training workbook."
+            hint="Owner Gmail."
             value={form.trainingAccount}
             onChange={(value) => setField('trainingAccount', value)}
             placeholder="training-owner@example.com"
           />
           <Field
             label="Spreadsheet ID"
-            hint="Paste the ID or the full Google Sheets URL."
+            hint="ID or sheet URL."
             value={form.trainingSpreadsheetId}
             onChange={(value) => setField('trainingSpreadsheetId', value)}
-            placeholder="Training spreadsheet — clients, sessions, work logs"
+            placeholder="Training spreadsheet ID"
           />
         </div>
 
@@ -173,14 +167,14 @@ export default function SheetsConfigPanel() {
           <h3 className="text-sm font-semibold">User details</h3>
           <Field
             label="Google account"
-            hint="Owner or editor Gmail for the user details workbook."
+            hint="Owner Gmail."
             value={form.employeesAccount}
             onChange={(value) => setField('employeesAccount', value)}
-            placeholder="Same as training if left blank"
+            placeholder="Optional"
           />
           <Field
             label="Spreadsheet ID"
-            hint="Users tab is created only on this spreadsheet. Do not reuse the sales or training sheet ID."
+            hint="Users spreadsheet only."
             value={form.employeesSpreadsheetId}
             onChange={(value) => setField('employeesSpreadsheetId', value)}
             placeholder="User details spreadsheet ID"

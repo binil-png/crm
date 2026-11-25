@@ -106,16 +106,8 @@ export default function ScheduleSessionModal({ client, onClose }) {
             }}
           />
         </div>
-        <p className="text-sm text-slate-500">
-          You are selected by default. Choose another training team member to put the session on their calendar. They
-          must share that calendar with you as “Make changes to events”.
-        </p>
         <LeadEmailField client={liveClient} />
-        <p className="text-sm text-slate-500">
-          {inviteEmail
-            ? `Google Calendar will email an invitation to ${inviteEmail}.`
-            : 'No lead email ID is on file. The session will still be scheduled; add an email later if you want a calendar invitation sent to the lead.'}
-        </p>
+        {inviteEmail ? <p className="text-sm text-slate-500">Invite: {inviteEmail}</p> : null}
 
         {slots.map((slot, index) => (
           <div key={index} className="rounded border border-slate-200 p-3">

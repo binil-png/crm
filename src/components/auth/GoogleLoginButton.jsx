@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { CalendarDays, Database, Sheet } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { isDemoMode, refreshAppSheetsStatus, resetConfig } from '../../services/googleApi';
-import { DEMO_ACCOUNTS, STORAGE_KEYS } from '../../utils/constants';
+import { DEMO_ACCOUNTS } from '../../utils/constants';
 
 export default function GoogleLoginButton() {
   const { login, enterLocalDemo, busy, error } = useAuth();
@@ -14,27 +14,24 @@ export default function GoogleLoginButton() {
   }, []);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
-      <div className="w-full max-w-3xl rounded-lg border border-slate-200 bg-white p-6">
+    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
+      <div className="w-full max-w-3xl rounded-lg border border-slate-200 bg-white p-8">
         <h1 className="text-xl font-semibold">Sheets CRM</h1>
-        <p className="mt-2 text-sm text-slate-600">Choose how this CRM stores data.</p>
-        {error ? <p className="mt-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
+        <p className="mt-1 text-sm text-slate-500">Sign in or try a local demo.</p>
+        {error ? <p className="mt-4 rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <div className="flex flex-col rounded-lg border border-slate-200 p-4">
+        <div className="mt-6 grid gap-5 md:grid-cols-2">
+          <div className="flex flex-col rounded-lg border border-slate-200 p-5">
             <div className="flex items-center gap-2 text-slate-900">
               <Sheet size={18} />
               <CalendarDays size={18} />
-              <h2 className="font-semibold">Google Sheets and Calendar</h2>
+              <h2 className="font-semibold">Google</h2>
             </div>
-            <p className="mt-2 flex-1 text-sm text-slate-600">
-              Live data. Sign-in reads the configuration sheet for the user details and sales spreadsheet IDs, then
-              authenticates against the Users tab. Sales calls and training sessions go to Google Calendar.
-            </p>
+            <p className="mt-3 flex-1 text-sm text-slate-600">Sheets and Calendar.</p>
             <p className="mt-2 text-xs text-slate-500">
               {appSheets.enabled
-                ? `Sheets are opened by the CRM app. Share the configuration, sales, training, and user details spreadsheets with ${appSheets.shareWith} as Editor.`
-                : 'Sign in with a Gmail that has Editor access on the configuration sheet and on the sales, training, and user details spreadsheets listed there.'}
+                ? `Share sheets with ${appSheets.shareWith}.`
+                : 'Editor access is required on the sheets.'}
             </p>
             <button
               type="button"
@@ -42,23 +39,17 @@ export default function GoogleLoginButton() {
               disabled={busy}
               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-60"
             >
-              {busy && !demo ? 'Connecting…' : 'Connect Google Sheets and Calendar'}
+              {busy && !demo ? 'Connecting…' : 'Connect Google'}
             </button>
           </div>
 
-          <div className="flex flex-col rounded-lg border border-slate-200 p-4">
+          <div className="flex flex-col rounded-lg border border-slate-200 p-5">
             <div className="flex items-center gap-2 text-slate-900">
               <Database size={18} />
-              <h2 className="font-semibold">Local setup</h2>
+              <h2 className="font-semibold">Local</h2>
             </div>
-            <p className="mt-2 flex-1 text-sm text-slate-600">
-              Test in this browser only. Sample leads, users, training, and work logs stay in localStorage. Sales,
-              Training, and User details spreadsheet IDs are still loaded from the configuration Google Sheet.
-            </p>
-            <p className="mt-2 text-xs text-slate-500">
-              Choose a user. Privileges follow User Type and User Role. Data key: {STORAGE_KEYS.MOCK_DB}.
-            </p>
-            <div className="mt-4 grid gap-2">
+            <p className="mt-3 flex-1 text-sm text-slate-600">Sample data in this browser.</p>
+            <div className="mt-5 grid gap-2">
               {DEMO_ACCOUNTS.map((account) => (
                 <button
                   key={account.email}
@@ -82,7 +73,7 @@ export default function GoogleLoginButton() {
               disabled={busy}
               className="mt-2 text-xs text-slate-500 underline"
             >
-              Reset sample data and start as Admin
+              Reset demo
             </button>
           </div>
         </div>
@@ -95,7 +86,7 @@ export default function GoogleLoginButton() {
             window.location.reload();
           }}
         >
-          Change connection IDs
+          Change IDs
         </button>
       </div>
     </div>

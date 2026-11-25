@@ -507,8 +507,8 @@ export default function TrainingCalendar() {
         <div>
           <p className="text-xs text-slate-500">
             {viewEmail === ALL_TRAINERS
-              ? `Showing all trainers · ${visibleSessions.length} sessions this week`
-              : `Showing ${viewTrainer?.name || viewEmail} · calendar ${viewTrainer?.calendarId || '—'}`}
+              ? `${visibleSessions.length} this week`
+              : viewTrainer?.name || viewEmail}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -553,11 +553,6 @@ export default function TrainingCalendar() {
               busy={busy}
               onSave={(calendarId) => saveTrainerCalendarId(viewTrainer.email, calendarId)}
             />
-          ) : viewEmail === ALL_TRAINERS &&
-            (privileges.canManageUsers || privileges.canEditTeamCalendar) ? (
-            <p className="max-w-[220px] text-xs text-slate-500">
-              Select a trainer to set their individual Calendar ID.
-            </p>
           ) : null}
           <label className="text-sm text-slate-600">
             Duration
@@ -580,7 +575,7 @@ export default function TrainingCalendar() {
         className="sticky z-30 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm"
         style={{ top: 'var(--crm-header-h, 7.5rem)' }}
       >
-        <p className="text-sm font-medium text-slate-700">Training / Doubt clarification</p>
+        <p className="text-sm font-medium text-slate-700">Type</p>
         <WorkTypeSelect
           value={typeFilter}
           allowAll
@@ -589,11 +584,6 @@ export default function TrainingCalendar() {
             if (type !== 'All') setWorkType(type);
           }}
         />
-        <p className="text-xs text-slate-500">
-          {typeFilter === 'All'
-            ? 'Showing all types. New sessions use Training unless you pick a type.'
-            : `Showing ${typeFilter}. New sessions are created as ${workType}.`}
-        </p>
       </div>
 
       {error ? <p className="rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
@@ -613,8 +603,7 @@ export default function TrainingCalendar() {
         style={{ minHeight: MIN_CALENDAR_PX, height: `max(${MIN_CALENDAR_PX}px, calc(100vh - 14rem))` }}
       >
         <aside className="flex min-h-0 flex-col rounded-lg border border-slate-200 bg-white p-3">
-          <p className="text-sm font-medium">Clients to schedule</p>
-          <p className="mb-2 text-xs text-slate-500">Drag onto the week, or click to select.</p>
+          <p className="text-sm font-medium">Clients</p>
           <label className="mb-3 block text-xs text-slate-600">
             Type
             <select
@@ -637,7 +626,7 @@ export default function TrainingCalendar() {
           <div className="min-h-0 flex-1 space-y-2 overflow-auto">
             {queue.length === 0 ? (
               <p className="rounded border border-dashed border-slate-300 p-3 text-sm text-slate-500">
-                No open clients. Sales can pass a closed account to this queue.
+                No clients.
               </p>
             ) : null}
             {queue.map((client) => (
@@ -774,13 +763,12 @@ function TrainerCalendarIdField({ trainer, busy, onSave }) {
   if (!trainer) return null;
   return (
     <label className="text-xs font-medium text-slate-600">
-      Calendar ID for {trainer.name}
+      Calendar ID
       <input
-        className="mt-1 w-64 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm font-normal text-slate-800 disabled:bg-slate-50"
+        className="mt-1 w-56 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm font-normal text-slate-800 disabled:bg-slate-50"
         value={value}
         disabled={busy}
-        placeholder="primary, Gmail, or calendar ID"
-        title="Google Calendar used when scheduling this trainer"
+        placeholder="primary or Gmail"
         onChange={(event) => setValue(event.target.value)}
         onBlur={() => {
           const next = normalizeCalendarId(value, trainer.email);

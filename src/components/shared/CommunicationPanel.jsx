@@ -4,7 +4,7 @@ import { useCrmStore } from '../../store/crmStore';
 import { INTERACTION_CHANNELS, appendStageComment, formatDateTime, parseStageComments } from '../../utils/constants';
 
 export default function CommunicationPanel() {
-  const { user, privileges } = useAuth();
+  const { user } = useAuth();
   const { leads, messages, addMessage, updateLead } = useCrmStore();
   const [leadKey, setLeadKey] = useState('');
   const [staff, setStaff] = useState('All');
@@ -77,14 +77,9 @@ export default function CommunicationPanel() {
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4">
-      <h2 className="text-lg font-semibold">Interaction History</h2>
-      <p className="text-sm text-slate-500">
-        {privileges.canViewAllInteractions
-          ? 'All staff records: Interaction History posts plus comments, scheduled calls and status notes from every lead.'
-          : 'Posts to Interaction History and appends a stage note on the lead Comments column.'}
-      </p>
+      <h2 className="mb-4 text-lg font-semibold">Interactions</h2>
 
-      <form onSubmit={submit} className="mt-4 grid gap-3 md:grid-cols-2">
+      <form onSubmit={submit} className="grid gap-3 md:grid-cols-2">
         <label className="text-sm">
           Customer
           <select

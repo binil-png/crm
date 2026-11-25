@@ -19,21 +19,9 @@ import {
 import { ALL_TRAINERS } from '../training/TrainerSelect';
 
 const PROGRESS_GROUPS = [
-  {
-    status: 'Not started',
-    title: 'Waiting for training',
-    hint: 'Passed to the technical team and not started yet.',
-  },
-  {
-    status: 'Ongoing',
-    title: 'In training',
-    hint: 'Currently receiving training from the technical team.',
-  },
-  {
-    status: 'Completed',
-    title: 'Training completed',
-    hint: 'Technical team has finished training.',
-  },
+  { status: 'Not started', title: 'Waiting' },
+  { status: 'Ongoing', title: 'In training' },
+  { status: 'Completed', title: 'Completed' },
 ];
 
 export default function SalesTrainingProgress({ compact = false, ribbon = false }) {
@@ -132,11 +120,7 @@ export default function SalesTrainingProgress({ compact = false, ribbon = false 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2">
         <div className="min-w-0">
           <p className="text-xs font-semibold text-sky-950">Client training</p>
-          <p className="text-[11px] text-sky-800">
-            {privileges.admin || privileges.teamLead
-              ? 'Training progress for all clients passed from sales.'
-              : 'Training progress for the clients you passed to the technical team.'}
-          </p>
+          <p className="text-[11px] text-sky-800">Progress</p>
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
           {TRAINING_STATUSES.map((item) => (
@@ -155,15 +139,10 @@ export default function SalesTrainingProgress({ compact = false, ribbon = false 
       <div className={compact ? 'mb-3' : 'mb-4 flex flex-wrap items-end justify-between gap-3'}>
         <div>
           <h2 className={compact ? 'text-sm font-semibold' : 'text-lg font-semibold'}>Training progress</h2>
-          <p className="text-xs text-slate-500">
-            {privileges.admin || privileges.teamLead
-              ? 'Waiting, in training, and completed clients passed from sales to the technical team.'
-              : 'Track the clients you passed to the technical team: waiting, currently in training, or completed.'}
-          </p>
         </div>
-        {!compact ? (
-          <p className="text-xs text-slate-500">{visible.length} of {rows.length} clients</p>
-        ) : null}
+        <p className="text-xs text-slate-500">
+          {visible.length} of {rows.length}
+        </p>
       </div>
 
       <div className={`grid gap-3 ${compact ? 'grid-cols-3' : 'md:grid-cols-3'}`}>
@@ -171,14 +150,11 @@ export default function SalesTrainingProgress({ compact = false, ribbon = false 
           <div key={item.status} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
             <p className="text-[11px] uppercase tracking-wide text-slate-500">{item.title}</p>
             <p className="text-lg font-semibold text-slate-800">{counts[item.status] || 0}</p>
-            {!compact ? <p className="mt-1 text-[11px] text-slate-500">{item.hint}</p> : null}
           </div>
         ))}
       </div>
 
-      {compact ? (
-        <p className="mt-3 text-xs text-slate-500">Open Training progress for the full list by status.</p>
-      ) : (
+      {compact ? null : (
         <>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className="text-xs font-medium text-slate-600">

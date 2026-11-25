@@ -99,11 +99,7 @@ export default function ClientList() {
   return (
     <section>
       <div className="mb-4">
-        <h2 className="text-lg font-semibold">Clients from sales</h2>
-        <p className="text-sm text-slate-500">
-          View every trainer’s clients and status, or filter to one person. You stay the default assignee unless you
-          pick someone else.
-        </p>
+        <h2 className="text-lg font-semibold">Clients</h2>
       </div>
 
       {error ? <p className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
@@ -163,9 +159,7 @@ export default function ClientList() {
       <div className="space-y-3">
         {visible.length === 0 ? (
           <p className="rounded border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
-            {statusFilter === 'Not started'
-              ? 'No clients are waiting. Sales can pass a completed lead to this queue.'
-              : 'No clients in this view.'}
+            {statusFilter === 'Not started' ? 'No waiting clients.' : 'No clients.'}
           </p>
         ) : null}
 
@@ -244,7 +238,7 @@ export default function ClientList() {
                   {mine ? ' (you)' : ''}
                 </p>
               ) : (
-                <p className="mt-2 text-sm text-amber-700">Not picked yet — defaults to you</p>
+                <p className="mt-2 text-sm text-amber-700">Unassigned</p>
               )}
 
               {privileges.canAssignTrainer && !isTrainingCompleted(client) && canEditClient ? (

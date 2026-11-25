@@ -82,10 +82,7 @@ export default function TrainingDropBox({ leads }) {
       <div className="mb-3 flex items-start gap-2">
         <GraduationCap size={18} className="mt-0.5 text-sky-700" />
         <div>
-          <h3 className="text-sm font-semibold">Training box</h3>
-          <p className="text-xs text-slate-500">
-            Pass a completed lead here. The training team will assign themselves.
-          </p>
+          <h3 className="text-sm font-semibold">Training</h3>
         </div>
       </div>
 

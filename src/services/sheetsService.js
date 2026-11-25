@@ -345,6 +345,18 @@ const namedLeadSheets = (users, titleSet) => {
   return names;
 };
 
+const uniqueSheetNames = (...lists) => {
+  const names = [];
+  const seen = new Set();
+  lists.flat().forEach((name) => {
+    const title = String(name || '').trim();
+    if (!title || seen.has(title)) return;
+    seen.add(title);
+    names.push(title);
+  });
+  return names;
+};
+
 const classifyLeadSheets = (titles, settingsRows, headerByTitle) => {
   const configured = (settingsRows || [])
     .slice(1)
@@ -523,7 +535,6 @@ export const ensureWorkbook = async () => {
 const listLeadSheetNames = async (existingTitles) => {
   const titles = existingTitles || new Set(sheetTitles(await getSpreadsheet({ spreadsheetId: salesId() })));
   const named = namedLeadSheets(await loadUsersSnapshot(), titles);
-  if (named.length) return named;
   const candidates = [...titles].filter((title) => !SYSTEM_TITLES.has(title) || title === SHEETS.NO_RESPONSE);
   const ranges = [titles.has(SHEETS.SETTINGS) ? a1(SHEETS.SETTINGS, 'A:A') : null, ...candidates.map((title) => a1(title, '1:1'))].filter(
     Boolean
@@ -532,7 +543,7 @@ const listLeadSheetNames = async (existingTitles) => {
   let offset = 0;
   const settingsRows = titles.has(SHEETS.SETTINGS) ? rows[offset++] || [] : [];
   const headerByTitle = new Map(candidates.map((title, index) => [title, rows[offset + index]?.[0] || []]));
-  return classifyLeadSheets(titles, settingsRows, headerByTitle);
+  return uniqueSheetNames(classifyLeadSheets(titles, settingsRows, headerByTitle), named);
 };
 
 const leadObjectsFromSheet = async (sheetName) => {
@@ -554,14 +565,9 @@ export const loadCrmSnapshot = async () => {
     const users = (await mock.mockGetObjects(SHEETS.USERS)).map(toDirectoryUser);
     const allLeads = await mock.mockGetLeads();
     const allSheets = await mock.mockGetLeadSheets();
-    const namedSheets = namedLeadSheets(users, new Set(allSheets));
-    const leadSheets = namedSheets.length ? namedSheets : allSheets;
-    const leads = namedSheets.length
-      ? allLeads.filter((lead) => namedSheets.includes(lead._sheet))
-      : allLeads;
     return {
-      leads,
-      leadSheets,
+      leads: allLeads,
+      leadSheets: uniqueSheetNames(allSheets, namedLeadSheets(users, new Set(allSheets))),
       clients: await mock.mockGetObjects(SHEETS.CLIENTS),
       sessions: await mock.mockGetObjects(SHEETS.SESSIONS),
       messages: await mock.mockGetObjects(SHEETS.INTERACTIONS),
@@ -578,11 +584,9 @@ export const loadCrmSnapshot = async () => {
   const titles = sheetTitles(salesBook);
   const titleSet = new Set(titles);
   const namedSheets = namedLeadSheets(users, titleSet);
-  const leadCandidates = namedSheets.length
-    ? namedSheets
-    : titles.filter((title) => !SYSTEM_TITLES.has(title) || title === SHEETS.NO_RESPONSE);
+  const leadCandidates = titles.filter((title) => !SYSTEM_TITLES.has(title) || title === SHEETS.NO_RESPONSE);
   const salesExtras = [SHEETS.INTERACTIONS].filter((title) => titleSet.has(title));
-  const useSettings = !namedSheets.length && titleSet.has(SHEETS.SETTINGS);
+  const useSettings = titleSet.has(SHEETS.SETTINGS);
   const salesRanges = [
     useSettings ? a1(SHEETS.SETTINGS, 'A:A') : null,
     ...leadCandidates.map((title) => a1(title, 'A:Q')),
@@ -596,9 +600,10 @@ export const loadCrmSnapshot = async () => {
   const leadValueGroups = leadCandidates.map(() => salesRows[offset++] || []);
   const extraValues = Object.fromEntries(salesExtras.map((title) => [title, salesRows[offset++] || []]));
   const headerByTitle = new Map(leadCandidates.map((title, index) => [title, leadValueGroups[index]?.[0] || []]));
-  const leadSheets = namedSheets.length
-    ? namedSheets
-    : classifyLeadSheets(titleSet, settingsRows, headerByTitle);
+  const leadSheets = uniqueSheetNames(
+    classifyLeadSheets(titleSet, settingsRows, headerByTitle),
+    namedSheets
+  );
   const leads = leadSheets.flatMap((name) => {
     const index = leadCandidates.indexOf(name);
     const values = index >= 0 ? leadValueGroups[index] || [] : [];

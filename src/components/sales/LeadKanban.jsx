@@ -58,12 +58,24 @@ export default function LeadKanban() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const skipRowClick = useRef(false);
 
+  const sheetOptions = useMemo(() => {
+    const names = [];
+    const seen = new Set();
+    [...leadSheets, ...leads.map((lead) => lead._sheet)].forEach((name) => {
+      const title = String(name || '').trim();
+      if (!title || seen.has(title)) return;
+      seen.add(title);
+      names.push(title);
+    });
+    return names;
+  }, [leadSheets, leads]);
+
   useEffect(() => {
     if (defaultedSheet.current || privileges.leadOrAdmin) return;
-    if (!mySheet || !leadSheets.includes(mySheet)) return;
+    if (!mySheet || !sheetOptions.includes(mySheet)) return;
     setSheet(mySheet);
     defaultedSheet.current = true;
-  }, [mySheet, leadSheets, privileges.leadOrAdmin]);
+  }, [mySheet, sheetOptions, privileges.leadOrAdmin]);
 
   const latestLead = (lead) => leads.find((item) => leadKey(item) === leadKey(lead)) || lead;
 
@@ -165,7 +177,7 @@ export default function LeadKanban() {
         <div>
           <h2 className="text-lg font-semibold">Sales leads</h2>
           <p className="text-sm text-slate-500">
-            {visible.length} of {leads.length} rows · columns match the Google Sheet
+            {visible.length} of {leads.length}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -199,12 +211,12 @@ export default function LeadKanban() {
         ))}
       </div>
 
-      <div className="mb-3 grid gap-2 md:grid-cols-4">
+      <div className="mb-4 grid gap-3 md:grid-cols-4">
         <label className="text-xs font-medium text-slate-600">
           Search
           <input
             className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm font-normal text-slate-800"
-            placeholder="Search name, phone, email, comments"
+            placeholder="Name, phone, email"
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -223,7 +235,7 @@ export default function LeadKanban() {
             }}
           >
             <option value="All">All sheets</option>
-            {leadSheets.map((name) => (
+            {sheetOptions.map((name) => (
               <option key={name}>{name}</option>
             ))}
           </select>
@@ -269,11 +281,11 @@ export default function LeadKanban() {
         <table className="w-max min-w-full border-collapse text-left text-sm">
           <thead className="sticky top-0 bg-slate-50 text-xs uppercase text-slate-500">
             <tr>
-              <th className="w-8 border border-slate-300 px-1 py-2" title="Drag completed leads to training" />
-              <th className="border border-slate-300 px-2 py-2">Sheet</th>
+              <th className="w-8 border border-slate-300 px-1 py-2" title="Pass to training" />
+              <th className="border border-slate-300 px-3 py-2.5">Sheet</th>
               {LEAD_HEADERS.map((header) => (
-                <th key={header} className="whitespace-nowrap border border-slate-300 px-2 py-2">
-                  {header === 'Scheduled Date' ? 'Scheduled Date / Time' : header}
+                <th key={header} className="whitespace-nowrap border border-slate-300 px-3 py-2.5">
+                  {header === 'Scheduled Date' ? 'Schedule' : header}
                 </th>
               ))}
             </tr>
@@ -331,7 +343,7 @@ export default function LeadKanban() {
                           <td
                             key={header}
                             rowSpan={span}
-                            className="whitespace-nowrap border border-slate-300 px-2 py-2 align-top"
+                            className="whitespace-nowrap border border-slate-300 px-3 py-2.5 align-top"
                           >
                             {header === 'Sheet' ? (
                               <span className="text-xs text-slate-500">{lead._sheet}</span>
@@ -402,12 +414,12 @@ export default function LeadKanban() {
       </div>
 
       <Drawer
-        title="Call schedules and training"
+        title="Calls"
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         onOpen={() => setDrawerOpen(true)}
         wide
-        edgeLabel="Call schedules and training"
+        edgeLabel="Calls"
         edgeBadge={overdueCount + readyToPassCount}
       >
         <div className="grid items-start gap-4 md:grid-cols-2">
@@ -430,7 +442,7 @@ export default function LeadKanban() {
         <CreateLeadModal
           user={user}
           directory={directory}
-          leadSheets={leadSheets}
+          leadSheets={sheetOptions.length ? sheetOptions : leadSheets}
           executives={executives}
           onClose={() => setCreating(false)}
           onCreate={async (payload) => {

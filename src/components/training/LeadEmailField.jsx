@@ -45,7 +45,7 @@ export default function LeadEmailField({ client, compact = false }) {
       className={compact ? 'rounded-md border border-slate-200 bg-white p-2' : 'mt-3'}
     >
       <label className={`block ${compact ? 'text-[11px] text-slate-600' : 'text-sm'}`}>
-        Lead email ID
+        Email
         <input
           type="email"
           autoComplete="off"
@@ -61,11 +61,6 @@ export default function LeadEmailField({ client, compact = false }) {
           }}
         />
       </label>
-      {missing ? (
-        <p className={`mt-1 ${compact ? 'text-[11px]' : 'text-xs'} text-slate-500`}>
-          Optional. You can schedule now and add an email later for calendar invites.
-        </p>
-      ) : null}
       {error ? <p className={`mt-1 ${compact ? 'text-[11px]' : 'text-xs'} text-rose-700`}>{error}</p> : null}
       {saved ? <p className={`mt-1 ${compact ? 'text-[11px]' : 'text-xs'} text-emerald-700`}>Email saved.</p> : null}
       <button

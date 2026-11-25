@@ -268,11 +268,7 @@ export const useCrmStore = create((set, get) => ({
         });
       } catch (error) {
         throw new Error(
-          `Could not add this session to ${trainerEmail}'s calendar (${trainerCalendarId})${
-            hasLeadEmail ? ` or email ${leadEmail}` : ''
-          }. Use that trainer's Gmail or calendar ID (not an embed/share URL). Share the calendar with you as "Make changes to events"${
-            hasLeadEmail ? ', and confirm Google Calendar can invite guests' : ''
-          }. ${error.message || ''}`
+          `Could not add this session to ${trainerEmail}'s calendar (${trainerCalendarId}). ${error.message || ''}`
         );
       }
       const session = {
