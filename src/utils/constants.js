@@ -328,9 +328,44 @@ export const TRAINING_TEAM = [
   { name: 'Admin User', email: 'admin@example.com' },
 ];
 
+const decodeCalendarValue = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  try {
+    return decodeURIComponent(text);
+  } catch {
+    return text;
+  }
+};
+
+const calendarIdFromUrl = (value) => {
+  const raw = String(value || '').trim();
+  if (!/^https?:\/\//i.test(raw) && !/calendar\.google\.com/i.test(raw)) return decodeCalendarValue(raw);
+  try {
+    const url = new URL(raw);
+    const fromQuery = url.searchParams.get('src') || url.searchParams.get('cid');
+    if (fromQuery) {
+      const decoded = decodeCalendarValue(fromQuery);
+      if (decoded.includes('@') || decoded.toLowerCase() === 'primary') return decoded;
+      try {
+        const fromBase64 = atob(decoded);
+        if (fromBase64.includes('@')) return fromBase64.trim();
+      } catch {
+        return decoded;
+      }
+      return decoded;
+    }
+    const ical = raw.match(/\/calendar\/ical\/([^/]+)/i);
+    if (ical) return decodeCalendarValue(ical[1]);
+  } catch {
+    return decodeCalendarValue(raw);
+  }
+  return decodeCalendarValue(raw);
+};
+
 export const normalizeCalendarId = (value, email = '') => {
-  const stored = String(value || '').trim();
   const address = String(email || '').trim();
+  const stored = calendarIdFromUrl(value);
   if (stored && stored.toLowerCase() !== 'primary') return stored;
   return address || stored || 'primary';
 };

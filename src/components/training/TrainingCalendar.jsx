@@ -11,6 +11,7 @@ import {
   isCancelledSession,
   isValidLeadEmail,
   listTrainingTeam,
+  normalizeCalendarId,
   normalizeTrainingStatus,
   parseSheetDate,
   sameEmail,
@@ -315,7 +316,9 @@ export default function TrainingCalendar() {
     setError('');
     setBusy(true);
     try {
-      const next = await updateDirectoryUser(email, { 'Calendar ID': calendarId });
+      const next = await updateDirectoryUser(email, {
+        'Calendar ID': normalizeCalendarId(calendarId, email),
+      });
       if (sameEmail(email, user?.email)) applyDirectory(next);
     } catch (err) {
       setError(err.message || 'Could not save the training calendar ID.');
@@ -780,7 +783,7 @@ function TrainerCalendarIdField({ trainer, busy, onSave }) {
         title="Google Calendar used when scheduling this trainer"
         onChange={(event) => setValue(event.target.value)}
         onBlur={() => {
-          const next = value.trim() || 'primary';
+          const next = normalizeCalendarId(value, trainer.email);
           if (next !== (trainer.calendarId || 'primary')) onSave(next);
         }}
       />

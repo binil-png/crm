@@ -1,7 +1,14 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
-import { USER_ROLES, USER_TYPES, formatDateTime, normalizeRegistered, sameEmail } from '../../utils/constants';
+import {
+  USER_ROLES,
+  USER_TYPES,
+  formatDateTime,
+  normalizeCalendarId,
+  normalizeRegistered,
+  sameEmail,
+} from '../../utils/constants';
 
 export default function UsersPanel() {
   const { user, privileges, applyDirectory } = useAuth();
@@ -43,7 +50,7 @@ export default function UsersPanel() {
         User details are stored on the user details spreadsheet configured under Google sheets.
         Sheet Name is the sales tab loaded for that user.
         Calendar ID is the Google Calendar used for that training user when sessions are scheduled.
-        Use primary, the trainer Gmail, or a calendar ID such as xxx@group.calendar.google.com.
+        Enter primary, the trainer Gmail, or a calendar ID. Do not paste an embed or share URL.
         {privileges.canManageUsers
           ? ' Admins can change User Type, User Role, Calendar ID, and Sheet Name.'
           : ' Team leads can view the roster and update Calendar ID for people in the same department. Training users can set their own Calendar ID.'}
@@ -104,7 +111,7 @@ export default function UsersPanel() {
                       placeholder="primary, Gmail, or calendar ID"
                       title="Google Calendar used for this training user's sessions"
                       onBlur={(event) => {
-                        const next = event.target.value.trim() || 'primary';
+                        const next = normalizeCalendarId(event.target.value, row.Email);
                         if (next !== (row['Calendar ID'] || 'primary')) save(row, { 'Calendar ID': next });
                       }}
                     />

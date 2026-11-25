@@ -1,4 +1,4 @@
-import { getTimeZone } from '../utils/constants';
+import { getTimeZone, normalizeCalendarId } from '../utils/constants';
 import { getAccessToken, getCalendarId, googleFetch, isDemoMode, isGapiReady } from './googleApi';
 import * as mock from './mockBackend';
 
@@ -38,7 +38,8 @@ const buildEventResource = ({ title, start, end, attendees, attendeeNames, descr
   },
 });
 
-const resolveCalendar = (calendarId) => String(calendarId || getCalendarId() || 'primary').trim() || 'primary';
+const resolveCalendar = (calendarId) =>
+  normalizeCalendarId(calendarId || getCalendarId() || 'primary') || 'primary';
 
 export const createCalendarEvent = async ({ title, start, end, attendees, attendeeNames, description, calendarId }) => {
   if (isDemoMode()) {
