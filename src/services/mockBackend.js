@@ -307,6 +307,7 @@ const seedDb = () => {
             'Calendar ID': 'primary',
             'Last Login': '',
             Registered: 'Yes',
+            'Sheet Name': account.email === 'sales@example.com' ? 'ANWAR' : '',
           },
           HEADERS[SHEETS.USERS]
         )

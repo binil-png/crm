@@ -5,12 +5,13 @@ import { USER_ROLES, USER_TYPES, formatDateTime, normalizeRegistered } from '../
 
 export default function UsersPanel() {
   const { user, privileges, applyDirectory } = useAuth();
-  const { users, updateDirectoryUser } = useCrmStore();
+  const { users, updateDirectoryUser, refreshAll } = useCrmStore();
   const [error, setError] = useState('');
   const [busyEmail, setBusyEmail] = useState('');
 
   const save = async (row, patch) => {
     if ((patch['User Type'] || patch['User Role']) && !privileges.canEditUserTypeRole) return;
+    if (patch['Sheet Name'] !== undefined && !privileges.canManageUsers) return;
     if (
       patch['Calendar ID'] &&
       !privileges.canManageUsers &&
@@ -25,6 +26,7 @@ export default function UsersPanel() {
       if (String(user?.email || '').toLowerCase() === String(row.Email || '').toLowerCase()) {
         applyDirectory(next);
       }
+      if (patch['Sheet Name'] !== undefined) await refreshAll({ force: true });
     } catch (err) {
       setError(err.message || 'Could not update the Users sheet.');
     } finally {
@@ -38,8 +40,9 @@ export default function UsersPanel() {
       <p className="mb-4 text-sm text-slate-500">
         Google login adds the Gmail name and email here and sets Registered to Yes.
         User details are stored on the user details spreadsheet configured under Google sheets.
+        Sheet Name is the sales tab loaded for that user.
         {privileges.canManageUsers
-          ? ' Admins can change User Type, User Role, and Calendar ID.'
+          ? ' Admins can change User Type, User Role, Calendar ID, and Sheet Name.'
           : ' Team leads can view the roster and update Calendar ID for people in the same department.'}
       </p>
       {error ? <p className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
@@ -55,6 +58,7 @@ export default function UsersPanel() {
                 <th className="px-3 py-2">User type</th>
                 <th className="px-3 py-2">User role</th>
                 <th className="px-3 py-2">Calendar ID</th>
+                <th className="px-3 py-2">Sheet Name</th>
                 <th className="px-3 py-2">Last login</th>
                 <th className="px-3 py-2">Registered</th>
               </tr>
@@ -104,6 +108,18 @@ export default function UsersPanel() {
                       onBlur={(event) => {
                         const next = event.target.value.trim() || 'primary';
                         if (next !== (row['Calendar ID'] || 'primary')) save(row, { 'Calendar ID': next });
+                      }}
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      defaultValue={row['Sheet Name'] || ''}
+                      disabled={busyEmail === row.Email || !privileges.canManageUsers}
+                      className="w-40 rounded border border-slate-300 px-2 py-1 disabled:bg-slate-50"
+                      placeholder="Sales tab name"
+                      onBlur={(event) => {
+                        const next = event.target.value.trim();
+                        if (next !== (row['Sheet Name'] || '')) save(row, { 'Sheet Name': next });
                       }}
                     />
                   </td>

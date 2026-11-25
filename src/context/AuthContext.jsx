@@ -54,6 +54,7 @@ const fromSheetRow = (row) => ({
   userRole: normalizeUserRole(row?.['User Role']),
   calendarId: normalizeCalendarId(row?.['Calendar ID'] || row?.calendarId, row?.Email || row?.email),
   registered: normalizeRegistered(row?.Registered ?? row?.registered),
+  sheetName: String(row?.['Sheet Name'] || row?.sheetName || '').trim(),
 });
 
 const prepareWorkbooks = async () => {

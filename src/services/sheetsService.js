@@ -286,6 +286,65 @@ const ensureRequiredSheets = async (spreadsheetId, required) => {
   return existing;
 };
 
+const columnLetter = (count) => {
+  let n = Number(count) || 0;
+  let letters = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    letters = String.fromCharCode(65 + rem) + letters;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letters || 'A';
+};
+
+const canonicalUserHeader = (cell) => {
+  const trimmed = String(cell || '').trim();
+  const compact = trimmed.toLowerCase().replace(/[\s_-]+/g, '');
+  if (compact === 'sheetname') return 'Sheet Name';
+  return trimmed;
+};
+
+const resolveUserHeaders = (values) => {
+  const first = (values[0] || []).map((cell) => canonicalUserHeader(cell));
+  if (first.includes('Email') || first.includes('Username')) return first;
+  return HEADERS[SHEETS.USERS];
+};
+
+const sheetNameFromUser = (row = {}) => String(row['Sheet Name'] || row.sheetName || '').trim();
+
+const sheetNamesFromUsers = (users = []) => {
+  const names = [];
+  const seen = new Set();
+  users.forEach((row) => {
+    const name = sheetNameFromUser(row);
+    if (!name || seen.has(name)) return;
+    seen.add(name);
+    names.push(name);
+  });
+  return names;
+};
+
+const matchWorkbookTitle = (name, titleSet) => {
+  if (titleSet.has(name)) return name;
+  const lower = String(name || '').toLowerCase();
+  for (const title of titleSet) {
+    if (String(title).toLowerCase() === lower) return title;
+  }
+  return '';
+};
+
+const namedLeadSheets = (users, titleSet) => {
+  const names = [];
+  const seen = new Set();
+  sheetNamesFromUsers(users).forEach((name) => {
+    const title = matchWorkbookTitle(name, titleSet);
+    if (!title || seen.has(title)) return;
+    seen.add(title);
+    names.push(title);
+  });
+  return names;
+};
+
 const classifyLeadSheets = (titles, settingsRows, headerByTitle) => {
   const configured = (settingsRows || [])
     .slice(1)
@@ -463,6 +522,8 @@ export const ensureWorkbook = async () => {
 
 const listLeadSheetNames = async (existingTitles) => {
   const titles = existingTitles || new Set(sheetTitles(await getSpreadsheet({ spreadsheetId: salesId() })));
+  const named = namedLeadSheets(await loadUsersSnapshot(), titles);
+  if (named.length) return named;
   const candidates = [...titles].filter((title) => !SYSTEM_TITLES.has(title) || title === SHEETS.NO_RESPONSE);
   const ranges = [titles.has(SHEETS.SETTINGS) ? a1(SHEETS.SETTINGS, 'A:A') : null, ...candidates.map((title) => a1(title, '1:1'))].filter(
     Boolean
@@ -490,27 +551,40 @@ export const getLeadSheets = async () => {
 
 export const loadCrmSnapshot = async () => {
   if (isDemoMode()) {
+    const users = (await mock.mockGetObjects(SHEETS.USERS)).map(toDirectoryUser);
+    const allLeads = await mock.mockGetLeads();
+    const allSheets = await mock.mockGetLeadSheets();
+    const namedSheets = namedLeadSheets(users, new Set(allSheets));
+    const leadSheets = namedSheets.length ? namedSheets : allSheets;
+    const leads = namedSheets.length
+      ? allLeads.filter((lead) => namedSheets.includes(lead._sheet))
+      : allLeads;
     return {
-      leads: await mock.mockGetLeads(),
-      leadSheets: await mock.mockGetLeadSheets(),
+      leads,
+      leadSheets,
       clients: await mock.mockGetObjects(SHEETS.CLIENTS),
       sessions: await mock.mockGetObjects(SHEETS.SESSIONS),
       messages: await mock.mockGetObjects(SHEETS.INTERACTIONS),
       worklogs: await mock.mockGetObjects(SHEETS.LOGS),
-      users: await mock.mockGetObjects(SHEETS.USERS),
+      users,
     };
   }
 
+  const users = await loadUsersSnapshot();
   const salesSpreadsheetId = salesId();
   const salesBook = await withNotFound('Sales', salesSpreadsheetId, () =>
     getSpreadsheet({ spreadsheetId: salesSpreadsheetId })
   );
   const titles = sheetTitles(salesBook);
   const titleSet = new Set(titles);
-  const leadCandidates = titles.filter((title) => !SYSTEM_TITLES.has(title) || title === SHEETS.NO_RESPONSE);
+  const namedSheets = namedLeadSheets(users, titleSet);
+  const leadCandidates = namedSheets.length
+    ? namedSheets
+    : titles.filter((title) => !SYSTEM_TITLES.has(title) || title === SHEETS.NO_RESPONSE);
   const salesExtras = [SHEETS.INTERACTIONS].filter((title) => titleSet.has(title));
+  const useSettings = !namedSheets.length && titleSet.has(SHEETS.SETTINGS);
   const salesRanges = [
-    titleSet.has(SHEETS.SETTINGS) ? a1(SHEETS.SETTINGS, 'A:A') : null,
+    useSettings ? a1(SHEETS.SETTINGS, 'A:A') : null,
     ...leadCandidates.map((title) => a1(title, 'A:Q')),
     ...salesExtras.map((title) => a1(title, 'A:Z')),
   ].filter(Boolean);
@@ -518,11 +592,13 @@ export const loadCrmSnapshot = async () => {
     ? await withNotFound('Sales', salesSpreadsheetId, () => batchGetValues(salesRanges, salesSpreadsheetId))
     : [];
   let offset = 0;
-  const settingsRows = titleSet.has(SHEETS.SETTINGS) ? salesRows[offset++] || [] : [];
+  const settingsRows = useSettings ? salesRows[offset++] || [] : [];
   const leadValueGroups = leadCandidates.map(() => salesRows[offset++] || []);
   const extraValues = Object.fromEntries(salesExtras.map((title) => [title, salesRows[offset++] || []]));
   const headerByTitle = new Map(leadCandidates.map((title, index) => [title, leadValueGroups[index]?.[0] || []]));
-  const leadSheets = classifyLeadSheets(titleSet, settingsRows, headerByTitle);
+  const leadSheets = namedSheets.length
+    ? namedSheets
+    : classifyLeadSheets(titleSet, settingsRows, headerByTitle);
   const leads = leadSheets.flatMap((name) => {
     const index = leadCandidates.indexOf(name);
     const values = index >= 0 ? leadValueGroups[index] || [] : [];
@@ -534,7 +610,6 @@ export const loadCrmSnapshot = async () => {
   });
 
   const training = await loadTrainingSnapshot();
-  const users = await loadUsersSnapshot();
 
   return {
     leads,
@@ -583,7 +658,7 @@ const loadUsersSnapshot = async () => {
   if (!usersSpreadsheetId) return [];
   try {
     const userRows = await getValues(a1(SHEETS.USERS, 'A:Z'), usersSpreadsheetId);
-    return rowsToObjects(userRows, HEADERS[SHEETS.USERS]).map(toDirectoryUser);
+    return rowsToObjects(userRows, resolveUserHeaders(userRows)).map(toDirectoryUser);
   } catch (error) {
     if (isNotFoundError(error) || isPermissionError(error)) return [];
     throw error;
@@ -662,18 +737,25 @@ const toDirectoryUser = (row = {}) => ({
   'Calendar ID': String(row['Calendar ID'] || '').trim(),
   'Last Login': String(row['Last Login'] || '').trim(),
   Registered: String(row.Registered || '').trim() || 'Yes',
+  'Sheet Name': sheetNameFromUser(row),
 });
 
-const listUsersFrom = async (spreadsheetId) => {
+const readUsersTable = async (spreadsheetId) => {
   const values = await getValues(a1(SHEETS.USERS, 'A:Z'), spreadsheetId);
-  return rowsToObjects(values, HEADERS[SHEETS.USERS]).map(toDirectoryUser);
+  const headers = resolveUserHeaders(values);
+  return { headers, users: rowsToObjects(values, headers).map(toDirectoryUser) };
+};
+
+const listUsersFrom = async (spreadsheetId) => {
+  const table = await readUsersTable(spreadsheetId);
+  return table.users;
 };
 
 const writeUserToSpreadsheet = async (spreadsheetId, payload) => {
   await ensureRequiredSheets(spreadsheetId, [[SHEETS.USERS, HEADERS[SHEETS.USERS]]]);
-  const users = await listUsersFrom(spreadsheetId);
+  const { headers, users } = await readUsersTable(spreadsheetId);
   const existing = users.find((row) => sameEmail(row.Email, payload.Email));
-  const lastCol = String.fromCharCode(64 + HEADERS[SHEETS.USERS].length);
+  const lastCol = columnLetter(headers.length);
   if (existing?._row) {
     const next = {
       ...existing,
@@ -685,15 +767,19 @@ const writeUserToSpreadsheet = async (spreadsheetId, payload) => {
       'Calendar ID': existing['Calendar ID'] || payload['Calendar ID'] || 'primary',
       'Last Login': payload['Last Login'] || existing['Last Login'],
       Registered: 'Yes',
+      'Sheet Name':
+        payload['Sheet Name'] !== undefined && payload['Sheet Name'] !== null
+          ? String(payload['Sheet Name']).trim()
+          : sheetNameFromUser(existing),
     };
     await updateValues(
       a1(SHEETS.USERS, `A${existing._row}:${lastCol}${existing._row}`),
-      [objectToRow(next, HEADERS[SHEETS.USERS])],
+      [objectToRow(next, headers)],
       spreadsheetId
     );
     return toDirectoryUser({ ...next, _row: existing._row });
   }
-  await appendValues(a1(SHEETS.USERS, 'A:Z'), [objectToRow(payload, HEADERS[SHEETS.USERS])], spreadsheetId);
+  await appendValues(a1(SHEETS.USERS, 'A:Z'), [objectToRow(payload, headers)], spreadsheetId);
   return toDirectoryUser(payload);
 };
 
@@ -728,6 +814,7 @@ export const upsertDirectoryUser = async ({ name, email }) => {
       'Calendar ID': existing?.['Calendar ID'] || 'primary',
       'Last Login': loggedInAt,
       Registered: 'Yes',
+      'Sheet Name': sheetNameFromUser(existing),
     };
     if (existing) return toDirectoryUser(await updateDirectoryUser(address, payload));
     await appendObject(SHEETS.USERS, payload);
@@ -761,6 +848,7 @@ export const upsertDirectoryUser = async ({ name, email }) => {
     'Calendar ID': existing?.['Calendar ID'] || 'primary',
     'Last Login': loggedInAt,
     Registered: 'Yes',
+    'Sheet Name': sheetNameFromUser(existing),
   };
 
   try {
@@ -783,10 +871,11 @@ export const updateDirectoryUser = async (email, patch) => {
   if (isDemoMode()) {
     return mock.mockUpdateById(SHEETS.USERS, 'Email', existing.Email, next);
   }
-  const lastCol = String.fromCharCode(64 + HEADERS[SHEETS.USERS].length);
+  const { headers } = await readUsersTable(employeesId());
+  const lastCol = columnLetter(headers.length);
   await updateValues(
     a1(SHEETS.USERS, `A${existing._row}:${lastCol}${existing._row}`),
-    [objectToRow(next, HEADERS[SHEETS.USERS])],
+    [objectToRow(next, headers)],
     employeesId()
   );
   return next;

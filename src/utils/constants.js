@@ -134,7 +134,16 @@ export const WORKBOOK_CONFIG_HEADERS = [
   'Updated By',
 ];
 
-export const USER_HEADERS = ['Username', 'Email', 'User Type', 'User Role', 'Calendar ID', 'Last Login', 'Registered'];
+export const USER_HEADERS = [
+  'Username',
+  'Email',
+  'User Type',
+  'User Role',
+  'Calendar ID',
+  'Last Login',
+  'Registered',
+  'Sheet Name',
+];
 
 export const parseSpreadsheetId = (value) => {
   const text = String(value || '').trim();

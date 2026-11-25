@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, GripVertical, PanelRight, Plus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
@@ -38,12 +38,14 @@ import Drawer from '../shared/Drawer';
 const PAGE_SIZE = 50;
 
 export default function LeadKanban() {
-  const { user, privileges } = useAuth();
+  const { user, privileges, directory } = useAuth();
   const { leads, leadSheets, createLead, clients, updateLead, scheduleCall, completeCall } = useCrmStore();
   const now = useNow(15000);
   const [group, setGroup] = useState('All');
   const [status, setStatus] = useState('All');
   const [sheet, setSheet] = useState('All');
+  const mySheet = String(directory?.sheetName || '').trim();
+  const defaultedSheet = useRef(false);
   const [source, setSource] = useState('All');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(0);
@@ -55,6 +57,13 @@ export default function LeadKanban() {
   const [tableError, setTableError] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const skipRowClick = useRef(false);
+
+  useEffect(() => {
+    if (defaultedSheet.current || privileges.leadOrAdmin) return;
+    if (!mySheet || !leadSheets.includes(mySheet)) return;
+    setSheet(mySheet);
+    defaultedSheet.current = true;
+  }, [mySheet, leadSheets, privileges.leadOrAdmin]);
 
   const latestLead = (lead) => leads.find((item) => leadKey(item) === leadKey(lead)) || lead;
 
@@ -142,7 +151,7 @@ export default function LeadKanban() {
   );
 
   return (
-    <section>
+    <section className="w-full min-w-0">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Sales leads</h2>
@@ -246,9 +255,9 @@ export default function LeadKanban() {
 
       {tableError ? <p className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{tableError}</p> : null}
 
-      <div className="min-w-0">
-      <div className="max-h-[calc(100vh-13rem)] overflow-auto rounded border border-slate-300 bg-white">
-        <table className="min-w-[1400px] w-full border-collapse text-left text-sm">
+      <div className="w-full min-w-0">
+      <div className="max-h-[calc(100vh-13rem)] w-full min-w-0 overflow-x-auto overflow-y-auto rounded border border-slate-300 bg-white">
+        <table className="w-max min-w-full border-collapse text-left text-sm">
           <thead className="sticky top-0 bg-slate-50 text-xs uppercase text-slate-500">
             <tr>
               <th className="w-8 border border-slate-300 px-1 py-2" title="Drag completed leads to training" />
@@ -313,7 +322,7 @@ export default function LeadKanban() {
                           <td
                             key={header}
                             rowSpan={span}
-                            className="max-w-[200px] border border-slate-300 px-2 py-2 align-top"
+                            className="whitespace-nowrap border border-slate-300 px-2 py-2 align-top"
                           >
                             {header === 'Sheet' ? (
                               <span className="text-xs text-slate-500">{lead._sheet}</span>
@@ -411,6 +420,7 @@ export default function LeadKanban() {
       {creating ? (
         <CreateLeadModal
           user={user}
+          directory={directory}
           leadSheets={leadSheets}
           executives={executives}
           onClose={() => setCreating(false)}
@@ -538,8 +548,10 @@ function ScheduleStamp({ lead, now, canEdit, onComplete }) {
   );
 }
 
-function CreateLeadModal({ user, leadSheets, executives, onClose, onCreate }) {
-  const defaultSheet = leadSheets[0] || 'ANWAR';
+function CreateLeadModal({ user, directory, leadSheets, executives, onClose, onCreate }) {
+  const preferred = String(directory?.sheetName || '').trim();
+  const defaultSheet =
+    (preferred && leadSheets.includes(preferred) ? preferred : leadSheets[0]) || 'ANWAR';
   const [form, setForm] = useState({
     _sheet: defaultSheet,
     Executive: executives[0] || user?.name || '',

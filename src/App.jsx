@@ -71,7 +71,7 @@ export default function App() {
   return (
     <div className="min-h-screen">
       <Navbar />
-      <main className="w-full px-3 py-4">
+      <main className="w-full min-w-0 max-w-full overflow-x-hidden px-3 py-4">
         {error || dataError ? (
           <p className="mb-4 rounded bg-rose-50 p-3 text-sm text-rose-700">{error || dataError}</p>
         ) : null}
