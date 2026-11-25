@@ -6,11 +6,13 @@ import {
   findLeadForClient,
   isCancelledSession,
   isCompletedLead,
+  formatDdMmYyyyHm,
   isCompletedLeadDrag,
   leadKey,
   setCompletedLeadDrag,
   normalizeTrainingStatus,
   sessionCancelReason,
+  sessionCancelledAt,
   trainerLabel,
   trainingColor,
 } from '../../utils/constants';
@@ -178,8 +180,11 @@ export default function TrainingDropBox({ leads }) {
                       <div className="mt-2 space-y-1 rounded border border-rose-100 bg-rose-50 p-1.5">
                         {cancelledSessions.map((session) => (
                           <p key={session.Session_ID} className="text-[11px] text-rose-800">
-                            Cancelled {session.Session_Title || 'session'}:{' '}
-                            {sessionCancelReason(session) || 'No reason recorded'}
+                            Cancelled {session.Session_Title || 'session'}
+                            {formatDdMmYyyyHm(sessionCancelledAt(session))
+                              ? ` · ${formatDdMmYyyyHm(sessionCancelledAt(session))}`
+                              : ''}
+                            : {sessionCancelReason(session) || 'No reason recorded'}
                           </p>
                         ))}
                       </div>

@@ -8,6 +8,7 @@ import {
   clientLeadEmail,
   clientWorkType,
   formatDdMmYyyy,
+  formatDdMmYyyyHm,
   isCancelledSession,
   isValidLeadEmail,
   listTrainingTeam,
@@ -16,6 +17,7 @@ import {
   parseSheetDate,
   sameEmail,
   sessionCancelReason,
+  sessionCancelledAt,
   sessionTitleForType,
   sessionWorkType,
   sessionColor,
@@ -885,6 +887,7 @@ function DayColumn({
         const client = clients.find((item) => item.Client_ID === session.Client_ID);
         const cancelled = isCancelledSession(session);
         const reason = sessionCancelReason(session);
+        const cancelledAt = formatDdMmYyyyHm(sessionCancelledAt(session));
         const movable = isMovableSession(session);
         return (
           <div
@@ -915,7 +918,7 @@ function DayColumn({
             title={`${client?.Client_Name || session.Session_Title} · ${sessionWorkType(session)} · ${
               team.find((member) => sameEmail(member.email, session.Trainer_Email))?.name || session.Trainer_Email || 'Unassigned'
             } · ${formatClock(start.getHours(), start.getMinutes())}–${formatClock(end.getHours(), end.getMinutes())} · ${session.Status}${
-              cancelled ? ` · ${reason || 'No reason recorded'}` : ''
+              cancelled ? ` · Cancelled${cancelledAt ? ` ${cancelledAt}` : ''}${reason ? `: ${reason}` : ''}` : ''
             }`}
           >
             <span className={`block truncate font-medium ${cancelled ? 'line-through' : ''}`}>
@@ -923,7 +926,7 @@ function DayColumn({
             </span>
             <span className="block truncate opacity-80">
               {cancelled
-                ? `Cancelled${reason ? `: ${reason}` : ''}`
+                ? `Cancelled${cancelledAt ? ` ${cancelledAt}` : ''}${reason ? `: ${reason}` : ''}`
                 : `${sessionWorkType(session) === 'Doubt clarification' ? 'Doubt' : 'Training'} · ${
                     start.getMinutes() === 0
                       ? formatClockLabel(start.getHours(), start.getMinutes())
@@ -998,7 +1001,7 @@ function SessionPopover({ session, client, onClose }) {
       return;
     }
     const sessionStatus = nextStatus === 'Not started' ? 'Scheduled' : session.Status === 'Rescheduled' ? 'Rescheduled' : 'Scheduled';
-    await updateSession(session.Session_ID, { Status: sessionStatus, Cancel_Reason: '' });
+    await updateSession(session.Session_ID, { Status: sessionStatus, Cancel_Reason: '', Cancelled_At: '' });
     if (client?.Client_ID) await setClientTrainingStatus(client.Client_ID, nextStatus);
   };
 
@@ -1073,7 +1076,8 @@ function SessionPopover({ session, client, onClose }) {
 
         {isCancelledSession(session) ? (
           <p className="mt-3 rounded border border-rose-100 bg-rose-50 p-2 text-sm text-rose-800">
-            Cancelled: {sessionCancelReason(session) || 'No reason recorded'}
+            Cancelled{formatDdMmYyyyHm(sessionCancelledAt(session)) ? ` ${formatDdMmYyyyHm(sessionCancelledAt(session))}` : ''}:{' '}
+            {sessionCancelReason(session) || 'No reason recorded'}
           </p>
         ) : null}
 

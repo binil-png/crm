@@ -310,7 +310,11 @@ export const useCrmStore = create((set, get) => ({
   },
 
   updateSession: async (sessionId, patch) => {
-    const next = await sheets.updateSession(sessionId, patch);
+    const payload = { ...patch };
+    if (payload.Status === 'Cancelled' && !payload.Cancelled_At) {
+      payload.Cancelled_At = nowIso();
+    }
+    const next = await sheets.updateSession(sessionId, payload);
     const sessions = get().sessions.map((session) => (session.Session_ID === sessionId ? next : session));
     set({ sessions });
     if (patch.Status === 'Cancelled' || patch.Status === 'Completed') {

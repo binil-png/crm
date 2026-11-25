@@ -8,11 +8,13 @@ import {
   clientWorkType,
   findLeadForClient,
   formatDate,
+  formatDdMmYyyyHm,
   isCancelledSession,
   listTrainingTeam,
   normalizeTrainingStatus,
   sameEmail,
   sessionCancelReason,
+  sessionCancelledAt,
   trainerLabel,
   trainingColor,
 } from '../../utils/constants';
@@ -271,8 +273,11 @@ export default function SalesTrainingProgress({ compact = false, ribbon = false 
                           <div className="space-y-1">
                             {row.cancelledSessions.map((session) => (
                               <p key={session.Session_ID}>
-                                {session.Session_Title || 'Session'}:{' '}
-                                {sessionCancelReason(session) || 'No reason recorded'}
+                                {session.Session_Title || 'Session'}
+                                {formatDdMmYyyyHm(sessionCancelledAt(session))
+                                  ? ` · ${formatDdMmYyyyHm(sessionCancelledAt(session))}`
+                                  : ''}
+                                : {sessionCancelReason(session) || 'No reason recorded'}
                               </p>
                             ))}
                           </div>

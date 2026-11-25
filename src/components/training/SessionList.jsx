@@ -10,6 +10,7 @@ import {
   normalizeTrainingStatus,
   sameEmail,
   sessionCancelReason,
+  sessionCancelledAt,
   sessionColor,
   sessionWorkType,
   trainingColor,
@@ -85,6 +86,7 @@ export default function SessionList({ clientId, compact = false }) {
               <th className="px-3 py-2">Trainer</th>
               <th className="px-3 py-2">Client status</th>
               <th className="px-3 py-2">Session status</th>
+              <th className="px-3 py-2">Cancelled at</th>
               <th className="px-3 py-2">Cancel reason</th>
               <th className="px-3 py-2">Actions</th>
             </tr>
@@ -124,6 +126,9 @@ export default function SessionList({ clientId, compact = false }) {
                   </td>
                   <td className="px-3 py-2">
                     <span className={`rounded px-2 py-0.5 text-xs ${sessionColor(session.Status)}`}>{session.Status}</span>
+                  </td>
+                  <td className="px-3 py-2 text-rose-800">
+                    {cancelled ? formatDdMmYyyyHm(sessionCancelledAt(session)) || '—' : '—'}
                   </td>
                   <td className="px-3 py-2 text-rose-800">
                     {cancelled ? reason || 'No reason recorded' : '—'}

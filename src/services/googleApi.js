@@ -309,13 +309,14 @@ export const ensureAccessToken = async ({ force = false } = {}) => {
 export const hasGoogleSheetAccess = () => Boolean(realAccessToken()) || isAppSheetsEnabled();
 
 const readConfigSheetResponse = async (response) => {
+  const contentType = String(response.headers.get('content-type') || '');
   let data = {};
   try {
     data = await response.json();
   } catch {
     data = {};
   }
-  if (!response.ok) {
+  if (!response.ok || !contentType.includes('application/json')) {
     throw new Error(data.error || 'Could not load the configuration spreadsheet.');
   }
   return data;

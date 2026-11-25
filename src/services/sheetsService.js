@@ -443,28 +443,26 @@ const applyConfigValues = (values, host) => {
   return getConfig();
 };
 
+const serviceAccountLoginHelp = (label) =>
+  `This hosted CRM must load the ${label} sheet through /api/config-sheet and /api/sheets (service account ${getAppSheetsStatus().shareWith || 'crm-271@pappyjoe-crm.iam.gserviceaccount.com'}). Other Gmail accounts do not need Editor access. Deploy those APIs with GOOGLE_SERVICE_ACCOUNT_FILE, and share the sheets with that service account as Editor.`;
+
 export const loadWorkbookConfig = async () => {
   try {
     const publicData = await fetchPublicWorkbookConfig();
     const host = publicData.spreadsheetId || getConfigSpreadsheetId();
     return applyConfigValues(publicData.values || [], host);
   } catch (publicError) {
-    if (!hasGoogleSheetAccess()) throw publicError;
     await refreshAppSheetsStatus();
+    if (!hasGoogleSheetAccess()) throw publicError;
     const host = configId();
     try {
-      await ensureRequiredSheets(host, [[SHEETS.WORKBOOK_CONFIG, HEADERS[SHEETS.WORKBOOK_CONFIG]]]);
       const values = await getValues(a1(SHEETS.WORKBOOK_CONFIG, 'A:E'), host);
-      const rows = rowsToObjects(values, HEADERS[SHEETS.WORKBOOK_CONFIG]);
-      const config = rows.length ? configFromRows(rows) : defaultWorkbookConfig();
-      if (!rows.length) {
-        await updateValues(a1(SHEETS.WORKBOOK_CONFIG, 'A1:E4'), workbookConfigValues(config, ''), host);
-      }
-      persistWorkbookConfigLocally({ ...config, configSpreadsheetId: host });
-      return getConfig();
+      return applyConfigValues(values, host);
     } catch (error) {
       if (isNotFoundError(error)) throw missingSpreadsheetError('configuration', host);
-      if (isPermissionError(error)) throw new Error(shareHelp(host, 'configuration'));
+      if (isPermissionError(error)) {
+        throw new Error(isAppSheetsEnabled() ? shareHelp(host, 'configuration') : serviceAccountLoginHelp('configuration'));
+      }
       throw error;
     }
   }
@@ -832,7 +830,7 @@ export const upsertDirectoryUser = async ({ name, email }) => {
 
   let spreadsheetId = '';
   try {
-    spreadsheetId = await ensureUserDetailsSheet();
+    spreadsheetId = employeesId();
   } catch (error) {
     if (isNotFoundError(error)) throw missingSpreadsheetError('User details', getConfig().employeesSpreadsheetId);
     throw new Error(
@@ -847,6 +845,7 @@ export const upsertDirectoryUser = async ({ name, email }) => {
   } catch (error) {
     if (isNotFoundError(error)) throw missingSpreadsheetError('User details', spreadsheetId);
     if (!isPermissionError(error)) throw error;
+    if (!isAppSheetsEnabled()) throw new Error(serviceAccountLoginHelp('user details'));
   }
   const existing = users.find((row) => sameEmail(row.Email, address));
   const payload = {
@@ -864,6 +863,12 @@ export const upsertDirectoryUser = async ({ name, email }) => {
     const saved = await writeUserToSpreadsheet(spreadsheetId, payload);
     return toDirectoryUser(saved);
   } catch (error) {
+    if (existing && isPermissionError(error)) {
+      return toDirectoryUser({ ...existing, ...payload, _row: existing._row });
+    }
+    if (isPermissionError(error) && !isAppSheetsEnabled()) {
+      throw new Error(serviceAccountLoginHelp('user details'));
+    }
     throw new Error(
       describeSheetWriteError(error, spreadsheetId, 'user details', address) ||
         `Google sign-in could not register ${address} on the Users sheet.`

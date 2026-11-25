@@ -186,6 +186,7 @@ export const HEADERS = {
     'Session_Type',
     'Cancel_Reason',
     'Calendar_ID',
+    'Cancelled_At',
   ],
   [SHEETS.LOGS]: [
     'Log_ID',
@@ -791,6 +792,8 @@ export const sessionColor = (status) => {
 export const isCancelledSession = (session) => String(session?.Status || '').trim() === 'Cancelled';
 
 export const sessionCancelReason = (session) => String(session?.Cancel_Reason || '').trim();
+
+export const sessionCancelledAt = (session) => String(session?.Cancelled_At || '').trim();
 
 export const nextPipelineStatus = (status) => (STATUS_NEXT[normalizeStatus(status)] || [])[0] || status;
 
