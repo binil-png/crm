@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
-import { USER_ROLES, USER_TYPES, formatDateTime, normalizeRegistered } from '../../utils/constants';
+import { USER_ROLES, USER_TYPES, formatDateTime, normalizeRegistered, sameEmail } from '../../utils/constants';
 
 export default function UsersPanel() {
   const { user, privileges, applyDirectory } = useAuth();
@@ -9,16 +9,17 @@ export default function UsersPanel() {
   const [error, setError] = useState('');
   const [busyEmail, setBusyEmail] = useState('');
 
+  const canEditCalendar = (row) =>
+    Boolean(
+      privileges.canManageUsers ||
+        (privileges.canEditOwnCalendar && sameEmail(row.Email, user?.email)) ||
+        (privileges.canEditTeamCalendar && (row['User Type'] || 'Sales') === privileges.type)
+    );
+
   const save = async (row, patch) => {
     if ((patch['User Type'] || patch['User Role']) && !privileges.canEditUserTypeRole) return;
     if (patch['Sheet Name'] !== undefined && !privileges.canManageUsers) return;
-    if (
-      patch['Calendar ID'] &&
-      !privileges.canManageUsers &&
-      !(privileges.canEditTeamCalendar && (row['User Type'] || 'Sales') === privileges.type)
-    ) {
-      return;
-    }
+    if (patch['Calendar ID'] !== undefined && !canEditCalendar(row)) return;
     setError('');
     setBusyEmail(row.Email);
     try {
@@ -41,9 +42,11 @@ export default function UsersPanel() {
         Google login adds the Gmail name and email here and sets Registered to Yes.
         User details are stored on the user details spreadsheet configured under Google sheets.
         Sheet Name is the sales tab loaded for that user.
+        Calendar ID is the Google Calendar used for that training user when sessions are scheduled.
+        Use primary, the trainer Gmail, or a calendar ID such as xxx@group.calendar.google.com.
         {privileges.canManageUsers
           ? ' Admins can change User Type, User Role, Calendar ID, and Sheet Name.'
-          : ' Team leads can view the roster and update Calendar ID for people in the same department.'}
+          : ' Team leads can view the roster and update Calendar ID for people in the same department. Training users can set their own Calendar ID.'}
       </p>
       {error ? <p className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
       {users.length === 0 ? (
@@ -94,17 +97,12 @@ export default function UsersPanel() {
                   </td>
                   <td className="px-3 py-2">
                     <input
+                      key={`${row.Email}-cal-${row['Calendar ID'] || ''}`}
                       defaultValue={row['Calendar ID'] || 'primary'}
-                      disabled={
-                        busyEmail === row.Email ||
-                        !(
-                          privileges.canManageUsers ||
-                          (privileges.canEditTeamCalendar &&
-                            (row['User Type'] || 'Sales') === privileges.type)
-                        )
-                      }
+                      disabled={busyEmail === row.Email || !canEditCalendar(row)}
                       className="w-56 rounded border border-slate-300 px-2 py-1 disabled:bg-slate-50"
-                      placeholder="primary or calendar email"
+                      placeholder="primary, Gmail, or calendar ID"
+                      title="Google Calendar used for this training user's sessions"
                       onBlur={(event) => {
                         const next = event.target.value.trim() || 'primary';
                         if (next !== (row['Calendar ID'] || 'primary')) save(row, { 'Calendar ID': next });

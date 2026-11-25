@@ -122,17 +122,26 @@ export default function LeadKanban() {
   const visible = useMemo(() => {
     const groupStatuses = STATUS_GROUPS[group] || PIPELINE_STATUSES;
     const needle = query.trim().toLowerCase();
-    return leads.filter((lead) => {
-      if (sheet !== 'All' && lead._sheet !== sheet) return false;
-      if (status !== 'All' && lead.Status !== status) return false;
-      if (group !== 'All' && !groupStatuses.includes(lead.Status)) return false;
-      if (source !== 'All' && lead.Source !== source) return false;
-      if (!needle) return true;
-      return [lead['Customer Name'], lead['Email ID'], lead['Contact Number'], lead.Comments, lead.Executive]
-        .join(' ')
-        .toLowerCase()
-        .includes(needle);
-    });
+    return leads
+      .filter((lead) => {
+        if (sheet !== 'All' && lead._sheet !== sheet) return false;
+        if (status !== 'All' && lead.Status !== status) return false;
+        if (group !== 'All' && !groupStatuses.includes(lead.Status)) return false;
+        if (source !== 'All' && lead.Source !== source) return false;
+        if (!needle) return true;
+        return [lead['Customer Name'], lead['Email ID'], lead['Contact Number'], lead.Comments, lead.Executive]
+          .join(' ')
+          .toLowerCase()
+          .includes(needle);
+      })
+      .sort((left, right) => {
+        const leftTime = parseSheetDate(left.Date)?.getTime() || 0;
+        const rightTime = parseSheetDate(right.Date)?.getTime() || 0;
+        if (rightTime !== leftTime) return rightTime - leftTime;
+        const leftRow = Number(left._row) || Number(left['Sl No']) || 0;
+        const rightRow = Number(right._row) || Number(right['Sl No']) || 0;
+        return rightRow - leftRow;
+      });
   }, [leads, group, status, sheet, source, query]);
 
   const pages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));

@@ -166,8 +166,8 @@ const writeDragPayload = (event, payload, effect = 'copy') => {
 };
 
 export default function TrainingCalendar() {
-  const { user, privileges } = useAuth();
-  const { clients, leads, sessions, users, scheduleSessions, rescheduleSession } = useCrmStore();
+  const { user, privileges, applyDirectory } = useAuth();
+  const { clients, leads, sessions, users, scheduleSessions, rescheduleSession, updateDirectoryUser } = useCrmStore();
   const team = useMemo(
     () => listTrainingTeam({ clients, sessions, users, extra: [user?.email], currentEmail: user?.email }),
     [clients, sessions, users, user?.email]
@@ -304,6 +304,25 @@ export default function TrainingCalendar() {
   const selected = clients.find((client) => client.Client_ID === selectedId) || null;
 
   const viewTrainer = team.find((member) => sameEmail(member.email, viewEmail));
+  const canEditTrainerCalendar = (email) => {
+    if (!email || email === ALL_TRAINERS) return false;
+    if (privileges.canManageUsers) return true;
+    if (privileges.canEditOwnCalendar && sameEmail(email, user?.email)) return true;
+    return Boolean(privileges.canEditTeamCalendar && privileges.canViewTraining);
+  };
+
+  const saveTrainerCalendarId = async (email, calendarId) => {
+    setError('');
+    setBusy(true);
+    try {
+      const next = await updateDirectoryUser(email, { 'Calendar ID': calendarId });
+      if (sameEmail(email, user?.email)) applyDirectory(next);
+    } catch (err) {
+      setError(err.message || 'Could not save the training calendar ID.');
+    } finally {
+      setBusy(false);
+    }
+  };
   const visibleSessions = sessions.filter((session) => {
     if (viewEmail && viewEmail !== ALL_TRAINERS && !sameEmail(session.Trainer_Email, viewEmail)) {
       return false;
@@ -525,6 +544,18 @@ export default function TrainingCalendar() {
               currentEmail={user?.email}
             />
           </div>
+          {viewTrainer && canEditTrainerCalendar(viewTrainer.email) ? (
+            <TrainerCalendarIdField
+              trainer={viewTrainer}
+              busy={busy}
+              onSave={(calendarId) => saveTrainerCalendarId(viewTrainer.email, calendarId)}
+            />
+          ) : viewEmail === ALL_TRAINERS &&
+            (privileges.canManageUsers || privileges.canEditTeamCalendar) ? (
+            <p className="max-w-[220px] text-xs text-slate-500">
+              Select a trainer to set their individual Calendar ID.
+            </p>
+          ) : null}
           <label className="text-sm text-slate-600">
             Duration
             <select
@@ -729,6 +760,31 @@ export default function TrainingCalendar() {
         </div>
       ) : null}
     </section>
+  );
+}
+
+function TrainerCalendarIdField({ trainer, busy, onSave }) {
+  const [value, setValue] = useState(trainer?.calendarId || '');
+  useEffect(() => {
+    setValue(trainer?.calendarId || '');
+  }, [trainer?.email, trainer?.calendarId]);
+  if (!trainer) return null;
+  return (
+    <label className="text-xs font-medium text-slate-600">
+      Calendar ID for {trainer.name}
+      <input
+        className="mt-1 w-64 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm font-normal text-slate-800 disabled:bg-slate-50"
+        value={value}
+        disabled={busy}
+        placeholder="primary, Gmail, or calendar ID"
+        title="Google Calendar used when scheduling this trainer"
+        onChange={(event) => setValue(event.target.value)}
+        onBlur={() => {
+          const next = value.trim() || 'primary';
+          if (next !== (trainer.calendarId || 'primary')) onSave(next);
+        }}
+      />
+    </label>
   );
 }
 

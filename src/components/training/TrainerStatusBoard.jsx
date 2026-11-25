@@ -29,6 +29,7 @@ export default function TrainerStatusBoard({
       key: member.email,
       name: sameEmail(member.email, currentEmail) ? `${member.name} (you)` : member.name,
       email: member.email,
+      calendarId: member.calendarId || '',
       clients: clients.filter((client) => sameEmail(client.Assigned_Trainer, member.email)),
       mine: sameEmail(member.email, currentEmail),
     })),
@@ -68,6 +69,9 @@ export default function TrainerStatusBoard({
           >
             <p className="truncate text-sm font-medium">{row.name}</p>
             {row.email ? <p className="truncate text-[11px] text-slate-500">{row.email}</p> : null}
+            {row.calendarId ? (
+              <p className="truncate text-[11px] text-slate-400">Calendar: {row.calendarId}</p>
+            ) : null}
             <p className="mt-2 text-xs text-slate-600">
               {row.clients.length} {row.clients.length === 1 ? 'client' : 'clients'}
               {row.key !== 'unassigned' ? ` · ${sessionCount} sessions` : ''}
