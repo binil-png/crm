@@ -121,16 +121,14 @@ export default function LeadModal({ lead, onClose, onCloseDeal, mode = 'full' })
     try {
       const start = fromLocalInput(callStart);
       const end = new Date(new Date(start).getTime() + callMinutes * 60 * 1000).toISOString();
-      const saved = await scheduleCall(form, {
+      await scheduleCall(form, {
         start,
         end,
         note: stageNote || `Call scheduled for ${formatDdMmYyyyHm(new Date(start))}`,
       });
-      setForm(saved);
-      setStageNote('');
+      onClose();
     } catch (err) {
       setError(err.message);
-    } finally {
       setBusy(false);
     }
   };

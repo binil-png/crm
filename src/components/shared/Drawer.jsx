@@ -56,7 +56,7 @@ export default function Drawer({
           />
           <aside
             className={`absolute inset-y-0 right-0 flex w-full flex-col bg-slate-50 shadow-2xl ${
-              wide ? 'max-w-[760px]' : 'max-w-md'
+              wide ? 'max-w-[900px]' : 'max-w-md'
             }`}
           >
             <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">

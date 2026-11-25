@@ -1,5 +1,5 @@
 import { gapi } from 'gapi-script';
-import { DISCOVERY_DOCS, HARDCODED_CONFIG_SPREADSHEET_ID, STORAGE_KEYS } from '../utils/constants';
+import { DISCOVERY_DOCS, HARDCODED_CONFIG_SPREADSHEET_ID, SCOPES, STORAGE_KEYS } from '../utils/constants';
 
 let gapiReady = false;
 let accessToken = sessionStorage.getItem(STORAGE_KEYS.TOKEN) || '';
@@ -251,6 +251,61 @@ const realAccessToken = () => {
   return token;
 };
 
+const TOKEN_REFRESH_BUFFER_MS = 60 * 1000;
+
+const isCalendarApiUrl = (url) => String(url || '').includes('googleapis.com/calendar/');
+
+export const isAccessTokenExpired = () => {
+  if (!realAccessToken()) return true;
+  const exp = Number(sessionStorage.getItem(STORAGE_KEYS.TOKEN_EXP) || 0);
+  return !exp || exp - TOKEN_REFRESH_BUFFER_MS <= Date.now();
+};
+
+const persistAccessToken = (token, expiresIn) => {
+  setAccessToken(token);
+  const ttlMs = Number(expiresIn || 3600) * 1000;
+  sessionStorage.setItem(STORAGE_KEYS.TOKEN_EXP, String(Date.now() + ttlMs));
+};
+
+const requestGoogleAccessToken = (prompt) =>
+  new Promise((resolve, reject) => {
+    const clientId = getConfig().clientId;
+    const oauth = window.google?.accounts?.oauth2;
+    if (!clientId || !oauth) {
+      reject(new Error('Google Calendar sign-in expired. Sign in again, then add the session.'));
+      return;
+    }
+    const client = oauth.initTokenClient({
+      client_id: clientId,
+      scope: SCOPES,
+      callback: (response) => {
+        if (response?.error || !response?.access_token) {
+          reject(new Error('Google Calendar sign-in expired. Sign in again, then add the session.'));
+          return;
+        }
+        resolve(response);
+      },
+      error_callback: () => {
+        reject(new Error('Google Calendar sign-in expired. Sign in again, then add the session.'));
+      },
+    });
+    client.requestAccessToken({ prompt });
+  });
+
+export const ensureAccessToken = async ({ force = false } = {}) => {
+  if (isDemoMode()) return realAccessToken() || 'demo-token';
+  if (!force && !isAccessTokenExpired()) return realAccessToken();
+  try {
+    const response = await requestGoogleAccessToken('');
+    persistAccessToken(response.access_token, response.expires_in);
+    return response.access_token;
+  } catch {
+    const response = await requestGoogleAccessToken('consent');
+    persistAccessToken(response.access_token, response.expires_in);
+    return response.access_token;
+  }
+};
+
 export const hasGoogleSheetAccess = () => Boolean(realAccessToken()) || isAppSheetsEnabled();
 
 const readConfigSheetResponse = async (response) => {
@@ -280,7 +335,7 @@ export const savePublicWorkbookConfig = async (values) => {
   return readConfigSheetResponse(response);
 };
 
-export const googleFetch = async (url, options = {}) => {
+export const googleFetch = async (url, options = {}, retried = false) => {
   const token = realAccessToken();
   const configUrl = isConfigSpreadsheetUrl(url);
   const useAppSheets = isAppSheetsEnabled() && isAppSheetsUrl(url) && Boolean(token || configUrl);
@@ -313,6 +368,10 @@ export const googleFetch = async (url, options = {}) => {
         },
       });
   if (!response.ok) {
+    if (!retried && response.status === 401 && isCalendarApiUrl(url)) {
+      await ensureAccessToken({ force: true });
+      return googleFetch(url, options, true);
+    }
     throw new Error(await parseError(response));
   }
   if (response.status === 204) return null;

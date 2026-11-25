@@ -56,6 +56,7 @@ export default function LeadKanban() {
   const [statusBusy, setStatusBusy] = useState('');
   const [tableError, setTableError] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerTab, setDrawerTab] = useState('training');
   const skipRowClick = useRef(false);
 
   const sheetOptions = useMemo(() => {
@@ -170,6 +171,7 @@ export default function LeadKanban() {
         : 0,
     [leads, clients, privileges.canPassToTraining]
   );
+  const drawerView = privileges.canPassToTraining ? drawerTab : 'calls';
 
   return (
     <section className="w-full min-w-0">
@@ -326,6 +328,7 @@ export default function LeadKanban() {
                                 onDragStart={(event) => {
                                   skipRowClick.current = true;
                                   setCompletedLeadDrag(event, lead);
+                                  setDrawerTab('training');
                                   setDrawerOpen(true);
                                 }}
                               >
@@ -422,19 +425,45 @@ export default function LeadKanban() {
         edgeLabel="Calls"
         edgeBadge={overdueCount + readyToPassCount}
       >
-        <div className="grid items-start gap-4 md:grid-cols-2">
-          {privileges.canPassToTraining ? <TrainingDropBox leads={leads} /> : null}
-          <CallScheduleSidebar
-            leads={leads}
-            now={now}
-            onSelect={(lead) => {
-              setDrawerOpen(false);
-              openLead(lead);
-            }}
-            canEdit={privileges.canEditLead}
-            onCompleteCall={markCallDone}
-            onChangeStatus={changeStatus}
-          />
+        <div>
+          <div className="mb-4 flex flex-wrap gap-2">
+            {privileges.canPassToTraining ? (
+              <button
+                type="button"
+                onClick={() => setDrawerTab('training')}
+                className={`rounded px-3 py-1.5 text-sm ${
+                  drawerView === 'training' ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white'
+                }`}
+              >
+                Training
+                {readyToPassCount ? ` (${readyToPassCount})` : ''}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setDrawerTab('calls')}
+              className={`rounded px-3 py-1.5 text-sm ${
+                drawerView === 'calls' ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white'
+              }`}
+            >
+              Call schedule
+              {overdueCount ? ` (${overdueCount})` : ''}
+            </button>
+          </div>
+          {drawerView === 'training' ? <TrainingDropBox leads={leads} /> : null}
+          {drawerView === 'calls' ? (
+            <CallScheduleSidebar
+              leads={leads}
+              now={now}
+              onSelect={(lead) => {
+                setDrawerOpen(false);
+                openLead(lead);
+              }}
+              canEdit={privileges.canEditLead}
+              onCompleteCall={markCallDone}
+              onChangeStatus={changeStatus}
+            />
+          ) : null}
         </div>
       </Drawer>
 

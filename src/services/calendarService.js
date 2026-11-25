@@ -1,5 +1,5 @@
 import { getTimeZone, normalizeCalendarId } from '../utils/constants';
-import { getAccessToken, getCalendarId, googleFetch, isDemoMode, isGapiReady } from './googleApi';
+import { ensureAccessToken, getCalendarId, googleFetch, isDemoMode } from './googleApi';
 import * as mock from './mockBackend';
 
 const splitEmails = (value) =>
@@ -46,19 +46,10 @@ export const createCalendarEvent = async ({ title, start, end, attendees, attend
     return mock.mockCreateCalendarEvent({ title, start, end, attendees });
   }
 
+  await ensureAccessToken();
   const resource = buildEventResource({ title, start, end, attendees, attendeeNames, description });
   const target = resolveCalendar(calendarId);
   const encoded = encodeURIComponent(target);
-
-  if (isGapiReady()) {
-    const response = await window.gapi.client.calendar.events.insert({
-      calendarId: target,
-      conferenceDataVersion: 1,
-      sendUpdates: 'all',
-      resource,
-    });
-    return response.result;
-  }
 
   return googleFetch(
     `https://www.googleapis.com/calendar/v3/calendars/${encoded}/events?conferenceDataVersion=1&sendUpdates=all`,
@@ -70,6 +61,7 @@ export const patchCalendarEvent = async (eventId, { start, end, title, attendees
   if (!eventId) throw new Error('Calendar event id is missing.');
   if (isDemoMode()) return mock.mockPatchCalendarEvent(eventId, { start, end });
 
+  await ensureAccessToken();
   const resource = {
     ...(title ? { summary: title } : {}),
     ...(start && end ? toEventTimes(start, end) : {}),
@@ -79,19 +71,6 @@ export const patchCalendarEvent = async (eventId, { start, end, title, attendees
   const target = resolveCalendar(calendarId);
   const encoded = encodeURIComponent(target);
 
-  if (isGapiReady()) {
-    const response = await window.gapi.client.calendar.events.patch({
-      calendarId: target,
-      eventId,
-      sendUpdates: 'all',
-      conferenceDataVersion: 1,
-      resource,
-    });
-    return response.result;
-  }
-
-  const token = getAccessToken();
-  if (!token) throw new Error('Not signed in.');
   return googleFetch(
     `https://www.googleapis.com/calendar/v3/calendars/${encoded}/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
     { method: 'PATCH', body: JSON.stringify(resource) }

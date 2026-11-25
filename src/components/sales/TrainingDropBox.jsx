@@ -109,84 +109,88 @@ export default function TrainingDropBox({ leads }) {
       {error ? <p className="mt-2 rounded bg-rose-50 p-2 text-xs text-rose-700">{error}</p> : null}
       {message ? <p className="mt-2 rounded bg-emerald-50 p-2 text-xs text-emerald-800">{message}</p> : null}
 
-      {waiting.length ? (
-        <section className="mt-4">
+      <div className="mt-4 grid items-start gap-4 md:grid-cols-2">
+        <section>
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
             Ready to pass ({waiting.length})
           </p>
-          <div className="space-y-2">
-            {waiting.map((lead) => (
-              <div
-                key={leadKey(lead)}
-                draggable
-                onDragStart={(event) => setCompletedLeadDrag(event, lead)}
-                className="flex cursor-grab items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-2 active:cursor-grabbing"
-              >
-                <GripVertical size={14} className="mt-0.5 shrink-0 text-emerald-500" />
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{lead['Customer Name']}</p>
-                  <p className="truncate text-xs text-slate-500">
-                    {lead._sheet} #{lead['Sl No']} · {lead.Executive || 'Sales'}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  disabled={busy}
-                  className="ml-auto shrink-0 rounded bg-sky-700 px-2 py-1 text-[11px] text-white disabled:opacity-50"
-                  onClick={() => handOff(lead)}
+          {waiting.length === 0 ? (
+            <p className="text-xs text-slate-400">None.</p>
+          ) : (
+            <div className="max-h-[calc(100vh-16rem)] space-y-2 overflow-auto">
+              {waiting.map((lead) => (
+                <div
+                  key={leadKey(lead)}
+                  draggable
+                  onDragStart={(event) => setCompletedLeadDrag(event, lead)}
+                  className="flex cursor-grab items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-2 active:cursor-grabbing"
                 >
-                  Pass
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section className="mt-4">
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
-          Passed to training ({passed.length})
-        </p>
-        {passed.length === 0 ? (
-          <p className="text-xs text-slate-400">No completed leads have been passed yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {passed.map((client) => {
-              const cancelledSessions = sessions.filter(
-                (session) => session.Client_ID === client.Client_ID && isCancelledSession(session)
-              );
-              return (
-              <article key={client.Client_ID} className="rounded-lg border border-sky-100 bg-white p-2">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="truncate text-sm font-medium">{client.Client_Name}</p>
-                  <span className={`rounded px-1.5 py-0.5 text-[10px] ${trainingColor(client.Training_Status)}`}>
-                    {normalizeTrainingStatus(client.Training_Status)}
-                  </span>
-                </div>
-                <p className="truncate text-xs text-slate-500">{client.Contact_Email || 'No email'}</p>
-                {client.Assigned_Trainer ? (
-                  <p className="mt-1 truncate text-[11px] text-sky-800">
-                    Picked by {trainerLabel(client.Assigned_Trainer)}
-                  </p>
-                ) : (
-                  <p className="mt-1 text-[11px] text-amber-700">Waiting for a trainer to pick this up</p>
-                )}
-                {cancelledSessions.length ? (
-                  <div className="mt-2 space-y-1 rounded border border-rose-100 bg-rose-50 p-1.5">
-                    {cancelledSessions.map((session) => (
-                      <p key={session.Session_ID} className="text-[11px] text-rose-800">
-                        Cancelled {session.Session_Title || 'session'}:{' '}
-                        {sessionCancelReason(session) || 'No reason recorded'}
-                      </p>
-                    ))}
+                  <GripVertical size={14} className="mt-0.5 shrink-0 text-emerald-500" />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{lead['Customer Name']}</p>
+                    <p className="truncate text-xs text-slate-500">
+                      {lead._sheet} #{lead['Sl No']} · {lead.Executive || 'Sales'}
+                    </p>
                   </div>
-                ) : null}
-              </article>
-              );
-            })}
-          </div>
-        )}
-      </section>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    className="ml-auto shrink-0 rounded bg-sky-700 px-2 py-1 text-[11px] text-white disabled:opacity-50"
+                    onClick={() => handOff(lead)}
+                  >
+                    Pass
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+            Passed to training ({passed.length})
+          </p>
+          {passed.length === 0 ? (
+            <p className="text-xs text-slate-400">None.</p>
+          ) : (
+            <div className="max-h-[calc(100vh-16rem)] space-y-2 overflow-auto">
+              {passed.map((client) => {
+                const cancelledSessions = sessions.filter(
+                  (session) => session.Client_ID === client.Client_ID && isCancelledSession(session)
+                );
+                return (
+                  <article key={client.Client_ID} className="rounded-lg border border-sky-100 bg-white p-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="truncate text-sm font-medium">{client.Client_Name}</p>
+                      <span className={`rounded px-1.5 py-0.5 text-[10px] ${trainingColor(client.Training_Status)}`}>
+                        {normalizeTrainingStatus(client.Training_Status)}
+                      </span>
+                    </div>
+                    <p className="truncate text-xs text-slate-500">{client.Contact_Email || 'No email'}</p>
+                    {client.Assigned_Trainer ? (
+                      <p className="mt-1 truncate text-[11px] text-sky-800">
+                        Picked by {trainerLabel(client.Assigned_Trainer)}
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-[11px] text-amber-700">Waiting</p>
+                    )}
+                    {cancelledSessions.length ? (
+                      <div className="mt-2 space-y-1 rounded border border-rose-100 bg-rose-50 p-1.5">
+                        {cancelledSessions.map((session) => (
+                          <p key={session.Session_ID} className="text-[11px] text-rose-800">
+                            Cancelled {session.Session_Title || 'session'}:{' '}
+                            {sessionCancelReason(session) || 'No reason recorded'}
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
     </aside>
   );
 }
