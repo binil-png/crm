@@ -51,7 +51,9 @@ export default function Navbar() {
           <div className="min-w-0">
             <p className="text-sm font-semibold leading-5">Sheets CRM</p>
             <p className="text-xs leading-4 text-slate-500">
-              {isDemoMode() ? 'LocalStorage test mode · no Google Sheets' : 'Google Sheets + Calendar, no backend'}
+              {isDemoMode()
+                ? 'LocalStorage test data · configuration from Google Sheet'
+                : 'Google Sheets + Calendar, no backend'}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-3">

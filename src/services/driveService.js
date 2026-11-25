@@ -1,5 +1,6 @@
 import {
   getAccessToken,
+  getConfigSpreadsheetId,
   getEmployeesSpreadsheetId,
   getSpreadsheetId,
   getTrainingSpreadsheetId,
@@ -35,10 +36,15 @@ export const getSpreadsheetStamp = async () => {
     const sales = await stampForFile(getSpreadsheetId());
     const training = getTrainingSpreadsheetId();
     const employees = getEmployeesSpreadsheetId();
+    const config = getConfigSpreadsheetId();
     const extra = training && training !== getSpreadsheetId() ? await stampForFile(training) : '';
     const people =
       employees && employees !== getSpreadsheetId() && employees !== training ? await stampForFile(employees) : '';
-    return `${sales}|${extra}|${people}`;
+    const registry =
+      config && config !== getSpreadsheetId() && config !== training && config !== employees
+        ? await stampForFile(config)
+        : '';
+    return `${sales}|${extra}|${people}|${registry}`;
   } catch (error) {
     console.warn('Drive change check skipped.', error);
     return '';

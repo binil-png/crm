@@ -6,6 +6,7 @@ import { useCrmStore } from '../../store/crmStore';
 import { parseSpreadsheetId } from '../../utils/constants';
 
 const emptyForm = {
+  configSpreadsheetId: '',
   salesAccount: '',
   spreadsheetId: '',
   trainingAccount: '',
@@ -40,18 +41,15 @@ export default function SheetsConfigPanel() {
     let cancelled = false;
     const apply = (current) => {
       setForm({
+        configSpreadsheetId: current.configSpreadsheetId || current.spreadsheetId || '',
         salesAccount: current.salesAccount || '',
         spreadsheetId: current.spreadsheetId || '',
         trainingAccount: current.trainingAccount || '',
         trainingSpreadsheetId: current.trainingSpreadsheetId || '',
         employeesAccount: current.employeesAccount || '',
-        employeesSpreadsheetId: current.employeesSpreadsheetId || current.trainingSpreadsheetId || '',
+        employeesSpreadsheetId: current.employeesSpreadsheetId || '',
       });
-      setConfigHost(
-        isDemoMode()
-          ? 'Local demo Workbook_Config'
-          : current.configSpreadsheetId || current.spreadsheetId || ''
-      );
+      setConfigHost(current.configSpreadsheetId || '');
     };
     apply(getWorkbookConfig());
     loadWorkbookConfig()
@@ -76,16 +74,18 @@ export default function SheetsConfigPanel() {
     try {
       const next = await saveWorkbookConfig(
         {
+          configSpreadsheetId: parseSpreadsheetId(form.configSpreadsheetId),
           salesAccount: form.salesAccount,
           spreadsheetId: parseSpreadsheetId(form.spreadsheetId),
           trainingAccount: form.trainingAccount,
           trainingSpreadsheetId: parseSpreadsheetId(form.trainingSpreadsheetId),
-          employeesAccount: form.employeesAccount || form.trainingAccount,
-          employeesSpreadsheetId: parseSpreadsheetId(form.employeesSpreadsheetId) || parseSpreadsheetId(form.trainingSpreadsheetId),
+          employeesAccount: form.employeesAccount,
+          employeesSpreadsheetId: parseSpreadsheetId(form.employeesSpreadsheetId),
         },
         user?.email
       );
       setForm({
+        configSpreadsheetId: next.configSpreadsheetId || form.configSpreadsheetId,
         salesAccount: next.salesAccount || '',
         spreadsheetId: next.spreadsheetId || '',
         trainingAccount: next.trainingAccount || '',
@@ -93,8 +93,9 @@ export default function SheetsConfigPanel() {
         employeesAccount: next.employeesAccount || '',
         employeesSpreadsheetId: next.employeesSpreadsheetId || '',
       });
+      setConfigHost(next.configSpreadsheetId || form.configSpreadsheetId);
       setNotice(
-        'Sheet details saved to Workbook_Config. Share each spreadsheet with the signed-in admin, or with the CRM service account, as Editor.'
+        'Sales, Training, and User details spreadsheet IDs were saved to Workbook_Config on the configuration Google Sheet, including in localStorage mode.'
       );
     } catch (err) {
       setError(err.message || 'Could not save Google sheet details.');
@@ -107,9 +108,8 @@ export default function SheetsConfigPanel() {
     <section>
       <h2 className="text-lg font-semibold">Google sheets</h2>
       <p className="mb-4 text-sm text-slate-500">
-        Sales, training, and employee details can live in spreadsheets owned by different Google accounts. Admin
-        enters each spreadsheet ID here. Mappings are stored on the configured account sheet tab Workbook_Config.
-        Employee / Users rows are written only to the employees spreadsheet.
+        Leads, training records, and user details each live in their own Google spreadsheet. This configuration
+        spreadsheet only stores those three spreadsheet IDs on the Workbook_Config tab.
       </p>
       {configHost ? (
         <p className="mb-4 text-xs text-slate-500">
@@ -119,9 +119,22 @@ export default function SheetsConfigPanel() {
       {error ? <p className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
       {notice ? <p className="mb-3 rounded bg-emerald-50 p-2 text-sm text-emerald-800">{notice}</p> : null}
 
+      <div className="mb-5 rounded-lg border border-slate-200 bg-white p-4">
+        <h3 className="text-sm font-semibold">Configuration sheet</h3>
+        <div className="mt-3 max-w-xl">
+          <Field
+            label="Spreadsheet ID"
+            hint="Workbook_Config on this sheet is the registry of Sales, Training, and User details spreadsheet IDs. Set VITE_GOOGLE_CONFIG_SPREADSHEET_ID in .env, or paste the ID here."
+            value={form.configSpreadsheetId}
+            onChange={(value) => setField('configSpreadsheetId', value)}
+            placeholder="Configuration spreadsheet ID"
+          />
+        </div>
+      </div>
+
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
-          <h3 className="text-sm font-semibold">Sales sheet</h3>
+          <h3 className="text-sm font-semibold">Sales data</h3>
           <Field
             label="Google account"
             hint="Owner or editor Gmail for the sales workbook."
@@ -134,12 +147,12 @@ export default function SheetsConfigPanel() {
             hint="Paste the ID or the full Google Sheets URL."
             value={form.spreadsheetId}
             onChange={(value) => setField('spreadsheetId', value)}
-            placeholder="Leads and interaction history"
+            placeholder="Sales spreadsheet — leads and interaction history"
           />
         </div>
 
         <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
-          <h3 className="text-sm font-semibold">Training sheet</h3>
+          <h3 className="text-sm font-semibold">Training data</h3>
           <Field
             label="Google account"
             hint="Owner or editor Gmail for the training workbook."
@@ -152,25 +165,25 @@ export default function SheetsConfigPanel() {
             hint="Paste the ID or the full Google Sheets URL."
             value={form.trainingSpreadsheetId}
             onChange={(value) => setField('trainingSpreadsheetId', value)}
-            placeholder="Training_Clients, Training_Sessions, work logs"
+            placeholder="Training spreadsheet — clients, sessions, work logs"
           />
         </div>
 
         <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
-          <h3 className="text-sm font-semibold">Employees sheet</h3>
+          <h3 className="text-sm font-semibold">User details</h3>
           <Field
             label="Google account"
-            hint="Employee details are saved on this account’s sheet."
+            hint="Owner or editor Gmail for the user details workbook."
             value={form.employeesAccount}
             onChange={(value) => setField('employeesAccount', value)}
             placeholder="Same as training if left blank"
           />
           <Field
             label="Spreadsheet ID"
-            hint="Users tab is created here. Leave blank to use the training spreadsheet."
+            hint="Users tab is created only on this spreadsheet. Do not reuse the sales or training sheet ID."
             value={form.employeesSpreadsheetId}
             onChange={(value) => setField('employeesSpreadsheetId', value)}
-            placeholder="Users / employee details"
+            placeholder="User details spreadsheet ID"
           />
         </div>
       </div>

@@ -37,7 +37,7 @@ export default function UsersPanel() {
       <h2 className="text-lg font-semibold">Users</h2>
       <p className="mb-4 text-sm text-slate-500">
         Google login adds the Gmail name and email here and sets Registered to Yes.
-        Employee rows are stored on the employees spreadsheet configured under Google sheets.
+        User details are stored on the user details spreadsheet configured under Google sheets.
         {privileges.canManageUsers
           ? ' Admins can change User Type, User Role, and Calendar ID.'
           : ' Team leads can view the roster and update Calendar ID for people in the same department.'}

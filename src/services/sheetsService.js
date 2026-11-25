@@ -17,6 +17,8 @@ import {
 } from '../utils/constants';
 import {
   applyWorkbookOverride,
+  fetchPublicWorkbookConfig,
+  savePublicWorkbookConfig,
   getAppSheetsStatus,
   getConfig,
   getConfigSpreadsheetId,
@@ -24,9 +26,11 @@ import {
   getSpreadsheetId,
   getTrainingSpreadsheetId,
   googleFetch,
+  hasGoogleSheetAccess,
   isAppSheetsEnabled,
   isDemoMode,
   isGapiReady,
+  refreshAppSheetsStatus,
   saveConfig,
 } from './googleApi';
 import * as mock from './mockBackend';
@@ -54,9 +58,8 @@ const requireId = (spreadsheetId, label) => {
 
 const salesId = () => requireId(getSpreadsheetId(), 'Sales');
 const trainingId = () => requireId(getTrainingSpreadsheetId(), 'Training');
-const employeesId = () =>
-  requireId(getEmployeesSpreadsheetId() || getTrainingSpreadsheetId(), 'Employees');
-const configId = () => requireId(getConfigSpreadsheetId() || getSpreadsheetId(), 'Config');
+const employeesId = () => requireId(getConfig().employeesSpreadsheetId, 'User details');
+const configId = () => requireId(getConfigSpreadsheetId(), 'Config');
 const idForSheet = (sheetName) => {
   if (sheetName === SHEETS.USERS) return employeesId();
   if (sheetName === SHEETS.WORKBOOK_CONFIG) return configId();
@@ -89,6 +92,27 @@ export const isSheetsApiDisabledError = (error) =>
     sheetsErrorMessage(error)
   );
 
+export const isNotFoundError = (error) => {
+  const text = sheetsErrorMessage(error);
+  const code = error?.status || error?.result?.error?.code;
+  return code === 404 || /requested entity was not found/i.test(text);
+};
+
+const missingSpreadsheetError = (label, spreadsheetId) =>
+  new Error(
+    `The ${label} spreadsheet was not found${spreadsheetId ? ` (${spreadsheetId})` : ''}. Open the configuration sheet, confirm that ID, and share the spreadsheet with your Google account as Editor.`
+  );
+
+const withNotFound = async (label, spreadsheetId, fn) => {
+  if (!spreadsheetId) throw new Error(`${label} spreadsheet ID is missing in Workbook_Config.`);
+  try {
+    return await fn();
+  } catch (error) {
+    if (isNotFoundError(error)) throw missingSpreadsheetError(label, spreadsheetId);
+    throw error;
+  }
+};
+
 const shareHelp = (spreadsheetId, label, email = '') => {
   const url = spreadsheetId ? `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` : '';
   const app = getAppSheetsStatus();
@@ -104,6 +128,7 @@ const describeSheetWriteError = (error, spreadsheetId, label, email) => {
     return 'Enable Google Sheets API in Google Cloud Console (APIs & Services → Library → Google Sheets API → Enable) for the OAuth project, wait about a minute, then sign in again.';
   }
   if (isPermissionError(error)) return shareHelp(spreadsheetId, label, email);
+  if (isNotFoundError(error)) return missingSpreadsheetError(label, spreadsheetId).message;
   return `${label}: ${sheetsErrorMessage(error)}`;
 };
 
@@ -282,8 +307,8 @@ const classifyLeadSheets = (titles, settingsRows, headerByTitle) => {
   return [...names];
 };
 
-const workbookRow = (rows, name) =>
-  rows.find((row) => String(row.Workbook || '').trim() === name) || {};
+const workbookRow = (rows, ...names) =>
+  rows.find((row) => names.includes(String(row.Workbook || '').trim())) || {};
 
 const defaultWorkbookConfig = () => {
   const cfg = getConfig();
@@ -292,8 +317,8 @@ const defaultWorkbookConfig = () => {
     spreadsheetId: cfg.spreadsheetId,
     trainingAccount: cfg.trainingAccount,
     trainingSpreadsheetId: cfg.trainingSpreadsheetId,
-    employeesAccount: cfg.employeesAccount || cfg.trainingAccount,
-    employeesSpreadsheetId: cfg.employeesSpreadsheetId || cfg.trainingSpreadsheetId,
+    employeesAccount: cfg.employeesAccount,
+    employeesSpreadsheetId: cfg.employeesSpreadsheetId,
     configSpreadsheetId: cfg.configSpreadsheetId,
   };
 };
@@ -301,23 +326,23 @@ const defaultWorkbookConfig = () => {
 const configFromRows = (rows) => {
   const sales = workbookRow(rows, WORKBOOK_KEYS.SALES);
   const training = workbookRow(rows, WORKBOOK_KEYS.TRAINING);
-  const employees = workbookRow(rows, WORKBOOK_KEYS.EMPLOYEES);
-  const trainingSpreadsheetId =
-    parseSpreadsheetId(training['Spreadsheet ID']) || getTrainingSpreadsheetId();
+  const users = workbookRow(rows, WORKBOOK_KEYS.USERS, WORKBOOK_KEYS.EMPLOYEES, 'User details');
   return {
     salesAccount: String(sales['Google Account'] || '').trim(),
     spreadsheetId: parseSpreadsheetId(sales['Spreadsheet ID']) || getSpreadsheetId(),
     trainingAccount: String(training['Google Account'] || '').trim(),
-    trainingSpreadsheetId,
-    employeesAccount:
-      String(employees['Google Account'] || '').trim() || String(training['Google Account'] || '').trim(),
-    employeesSpreadsheetId: parseSpreadsheetId(employees['Spreadsheet ID']) || trainingSpreadsheetId,
+    trainingSpreadsheetId: parseSpreadsheetId(training['Spreadsheet ID']) || getTrainingSpreadsheetId(),
+    employeesAccount: String(users['Google Account'] || '').trim(),
+    employeesSpreadsheetId: parseSpreadsheetId(users['Spreadsheet ID']) || getConfig().employeesSpreadsheetId || '',
   };
 };
 
 const persistWorkbookConfigLocally = (config) => {
   applyWorkbookOverride(config);
-  if (!isDemoMode()) saveConfig(config);
+  saveConfig({
+    ...config,
+    configSpreadsheetId: config.configSpreadsheetId || getConfig().configSpreadsheetId,
+  });
   return getConfig();
 };
 
@@ -328,7 +353,7 @@ const workbookConfigValues = (config, userEmail) => {
     HEADERS[SHEETS.WORKBOOK_CONFIG],
     [WORKBOOK_KEYS.SALES, config.salesAccount, config.spreadsheetId, at, by],
     [WORKBOOK_KEYS.TRAINING, config.trainingAccount, config.trainingSpreadsheetId, at, by],
-    [WORKBOOK_KEYS.EMPLOYEES, config.employeesAccount, config.employeesSpreadsheetId, at, by],
+    [WORKBOOK_KEYS.USERS, config.employeesAccount, config.employeesSpreadsheetId, at, by],
   ];
 };
 
@@ -340,46 +365,68 @@ const writeWorkbookConfigSheet = async (config, userEmail) => {
 
 export const getWorkbookConfig = () => defaultWorkbookConfig();
 
-export const loadWorkbookConfig = async () => {
-  if (isDemoMode()) {
-    persistWorkbookConfigLocally(mock.mockGetWorkbookConfig() || defaultWorkbookConfig());
-    return getConfig();
-  }
-  const host = configId();
-  await ensureRequiredSheets(host, [[SHEETS.WORKBOOK_CONFIG, HEADERS[SHEETS.WORKBOOK_CONFIG]]]);
-  const values = await getValues(a1(SHEETS.WORKBOOK_CONFIG, 'A:E'), host);
+const applyConfigValues = (values, host) => {
   const rows = rowsToObjects(values, HEADERS[SHEETS.WORKBOOK_CONFIG]);
   const config = rows.length ? configFromRows(rows) : defaultWorkbookConfig();
-  if (!rows.length) {
-    await updateValues(a1(SHEETS.WORKBOOK_CONFIG, 'A1:E4'), workbookConfigValues(config, ''), host);
-  }
-  persistWorkbookConfigLocally(config);
+  persistWorkbookConfigLocally({ ...config, configSpreadsheetId: host });
   return getConfig();
 };
 
+export const loadWorkbookConfig = async () => {
+  try {
+    const publicData = await fetchPublicWorkbookConfig();
+    const host = publicData.spreadsheetId || getConfigSpreadsheetId();
+    return applyConfigValues(publicData.values || [], host);
+  } catch (publicError) {
+    if (!hasGoogleSheetAccess()) throw publicError;
+    await refreshAppSheetsStatus();
+    const host = configId();
+    try {
+      await ensureRequiredSheets(host, [[SHEETS.WORKBOOK_CONFIG, HEADERS[SHEETS.WORKBOOK_CONFIG]]]);
+      const values = await getValues(a1(SHEETS.WORKBOOK_CONFIG, 'A:E'), host);
+      const rows = rowsToObjects(values, HEADERS[SHEETS.WORKBOOK_CONFIG]);
+      const config = rows.length ? configFromRows(rows) : defaultWorkbookConfig();
+      if (!rows.length) {
+        await updateValues(a1(SHEETS.WORKBOOK_CONFIG, 'A1:E4'), workbookConfigValues(config, ''), host);
+      }
+      persistWorkbookConfigLocally({ ...config, configSpreadsheetId: host });
+      return getConfig();
+    } catch (error) {
+      if (isNotFoundError(error)) throw missingSpreadsheetError('configuration', host);
+      if (isPermissionError(error)) throw new Error(shareHelp(host, 'configuration'));
+      throw error;
+    }
+  }
+};
+
 export const saveWorkbookConfig = async (payload, userEmail) => {
+  await refreshAppSheetsStatus();
+  const configSpreadsheetId =
+    parseSpreadsheetId(payload.configSpreadsheetId) || getConfigSpreadsheetId();
+  if (configSpreadsheetId) {
+    saveConfig({ configSpreadsheetId });
+  }
   const spreadsheetId = parseSpreadsheetId(payload.spreadsheetId);
   const trainingSpreadsheetId = parseSpreadsheetId(payload.trainingSpreadsheetId);
-  const employeesSpreadsheetId =
-    parseSpreadsheetId(payload.employeesSpreadsheetId) || trainingSpreadsheetId;
+  const employeesSpreadsheetId = parseSpreadsheetId(payload.employeesSpreadsheetId);
   if (!spreadsheetId) throw new Error('Sales spreadsheet ID is required.');
   if (!trainingSpreadsheetId) throw new Error('Training spreadsheet ID is required.');
+  if (!employeesSpreadsheetId) throw new Error('User details spreadsheet ID is required.');
   const config = {
     salesAccount: String(payload.salesAccount || '').trim().toLowerCase(),
     spreadsheetId,
     trainingAccount: String(payload.trainingAccount || '').trim().toLowerCase(),
     trainingSpreadsheetId,
-    employeesAccount: String(payload.employeesAccount || payload.trainingAccount || '')
-      .trim()
-      .toLowerCase(),
+    employeesAccount: String(payload.employeesAccount || '').trim().toLowerCase(),
     employeesSpreadsheetId,
+    configSpreadsheetId: configSpreadsheetId || getConfig().configSpreadsheetId,
   };
   persistWorkbookConfigLocally(config);
+  await savePublicWorkbookConfig(workbookConfigValues(config, userEmail || 'localstorage'));
   if (isDemoMode()) {
     mock.mockSaveWorkbookConfig(config);
     return getConfig();
   }
-  await writeWorkbookConfigSheet(config, userEmail);
   await ensureRequiredSheets(employeesId(), [[SHEETS.USERS, HEADERS[SHEETS.USERS]]]);
   await ensureWorkbook();
   return getConfig();
@@ -392,22 +439,15 @@ export const ensureWorkbook = async () => {
     [SHEETS.SETTINGS, HEADERS[SHEETS.SETTINGS]],
     [SHEETS.INTERACTIONS, INTERACTION_HEADERS],
     [SHEETS.AUDIT, HEADERS[SHEETS.AUDIT]],
-    [SHEETS.USERS, HEADERS[SHEETS.USERS]],
   ]);
 
-  const trainingRequired = [
+  await ensureRequiredSheets(trainingId(), [
     [SHEETS.CLIENTS, HEADERS[SHEETS.CLIENTS]],
     [SHEETS.SESSIONS, HEADERS[SHEETS.SESSIONS]],
     [SHEETS.LOGS, HEADERS[SHEETS.LOGS]],
-  ];
-  if (trainingId() === employeesId()) {
-    trainingRequired.splice(2, 0, [SHEETS.USERS, HEADERS[SHEETS.USERS]]);
-  }
-  await ensureRequiredSheets(trainingId(), trainingRequired);
+  ]);
   await ensureRequiredSheets(configId(), [[SHEETS.WORKBOOK_CONFIG, HEADERS[SHEETS.WORKBOOK_CONFIG]]]);
-  if (employeesId() !== trainingId() && employeesId() !== salesId()) {
-    await ensureRequiredSheets(employeesId(), [[SHEETS.USERS, HEADERS[SHEETS.USERS]]]);
-  }
+  await ensureRequiredSheets(employeesId(), [[SHEETS.USERS, HEADERS[SHEETS.USERS]]]);
 
   const leadSheets = await listLeadSheetNames(existing);
   if (!leadSheets.length) {
@@ -461,38 +501,26 @@ export const loadCrmSnapshot = async () => {
     };
   }
 
-  const [salesBook, trainingBook] = await Promise.all([
-    getSpreadsheet({ spreadsheetId: salesId() }),
-    getSpreadsheet({ spreadsheetId: trainingId() }),
-  ]);
+  const salesSpreadsheetId = salesId();
+  const salesBook = await withNotFound('Sales', salesSpreadsheetId, () =>
+    getSpreadsheet({ spreadsheetId: salesSpreadsheetId })
+  );
   const titles = sheetTitles(salesBook);
   const titleSet = new Set(titles);
-  const trainingTitles = new Set(sheetTitles(trainingBook));
   const leadCandidates = titles.filter((title) => !SYSTEM_TITLES.has(title) || title === SHEETS.NO_RESPONSE);
   const salesExtras = [SHEETS.INTERACTIONS].filter((title) => titleSet.has(title));
-  const trainingExtras = [SHEETS.CLIENTS, SHEETS.SESSIONS, SHEETS.LOGS].filter((title) =>
-    trainingTitles.has(title)
-  );
   const salesRanges = [
     titleSet.has(SHEETS.SETTINGS) ? a1(SHEETS.SETTINGS, 'A:A') : null,
     ...leadCandidates.map((title) => a1(title, 'A:Q')),
     ...salesExtras.map((title) => a1(title, 'A:Z')),
   ].filter(Boolean);
-  const trainingRanges = trainingExtras.map((title) => a1(title, 'A:Z'));
-
-  const [salesRows, trainingRows, userRows] = await Promise.all([
-    salesRanges.length ? batchGetValues(salesRanges, salesId()) : Promise.resolve([]),
-    trainingRanges.length ? batchGetValues(trainingRanges, trainingId()) : Promise.resolve([]),
-    getValues(a1(SHEETS.USERS, 'A:Z'), employeesId()).catch(() => []),
-  ]);
+  const salesRows = salesRanges.length
+    ? await withNotFound('Sales', salesSpreadsheetId, () => batchGetValues(salesRanges, salesSpreadsheetId))
+    : [];
   let offset = 0;
   const settingsRows = titleSet.has(SHEETS.SETTINGS) ? salesRows[offset++] || [] : [];
   const leadValueGroups = leadCandidates.map(() => salesRows[offset++] || []);
-  const extraValues = {
-    ...Object.fromEntries(salesExtras.map((title) => [title, salesRows[offset++] || []])),
-    ...Object.fromEntries(trainingExtras.map((title, index) => [title, trainingRows[index] || []])),
-  };
-
+  const extraValues = Object.fromEntries(salesExtras.map((title) => [title, salesRows[offset++] || []]));
   const headerByTitle = new Map(leadCandidates.map((title, index) => [title, leadValueGroups[index]?.[0] || []]));
   const leadSheets = classifyLeadSheets(titleSet, settingsRows, headerByTitle);
   const leads = leadSheets.flatMap((name) => {
@@ -505,17 +533,61 @@ export const loadCrmSnapshot = async () => {
     }));
   });
 
-  const objects = (title) => rowsToObjects(extraValues[title] || [], HEADERS[title] || []);
+  const training = await loadTrainingSnapshot();
+  const users = await loadUsersSnapshot();
 
   return {
     leads,
     leadSheets,
-    clients: objects(SHEETS.CLIENTS),
-    sessions: objects(SHEETS.SESSIONS),
+    clients: training.clients,
+    sessions: training.sessions,
     messages: rowsToObjects(extraValues[SHEETS.INTERACTIONS] || [], INTERACTION_HEADERS),
-    worklogs: objects(SHEETS.LOGS),
-    users: rowsToObjects(userRows, HEADERS[SHEETS.USERS]).map(toDirectoryUser),
+    worklogs: training.worklogs,
+    users,
   };
+};
+
+const emptyTrainingSnapshot = () => ({ clients: [], sessions: [], worklogs: [] });
+
+const loadTrainingSnapshot = async () => {
+  const trainingSpreadsheetId = getTrainingSpreadsheetId();
+  if (!trainingSpreadsheetId) return emptyTrainingSnapshot();
+  try {
+    const trainingBook = await getSpreadsheet({ spreadsheetId: trainingSpreadsheetId });
+    const trainingTitles = new Set(sheetTitles(trainingBook));
+    const trainingExtras = [SHEETS.CLIENTS, SHEETS.SESSIONS, SHEETS.LOGS].filter((title) =>
+      trainingTitles.has(title)
+    );
+    const trainingRows = trainingExtras.length
+      ? await batchGetValues(
+          trainingExtras.map((title) => a1(title, 'A:Z')),
+          trainingSpreadsheetId
+        )
+      : [];
+    const extraValues = Object.fromEntries(
+      trainingExtras.map((title, index) => [title, trainingRows[index] || []])
+    );
+    return {
+      clients: rowsToObjects(extraValues[SHEETS.CLIENTS] || [], HEADERS[SHEETS.CLIENTS] || []),
+      sessions: rowsToObjects(extraValues[SHEETS.SESSIONS] || [], HEADERS[SHEETS.SESSIONS] || []),
+      worklogs: rowsToObjects(extraValues[SHEETS.LOGS] || [], HEADERS[SHEETS.LOGS] || []),
+    };
+  } catch (error) {
+    if (isNotFoundError(error) || isPermissionError(error)) return emptyTrainingSnapshot();
+    throw error;
+  }
+};
+
+const loadUsersSnapshot = async () => {
+  const usersSpreadsheetId = getConfig().employeesSpreadsheetId;
+  if (!usersSpreadsheetId) return [];
+  try {
+    const userRows = await getValues(a1(SHEETS.USERS, 'A:Z'), usersSpreadsheetId);
+    return rowsToObjects(userRows, HEADERS[SHEETS.USERS]).map(toDirectoryUser);
+  } catch (error) {
+    if (isNotFoundError(error) || isPermissionError(error)) return [];
+    throw error;
+  }
 };
 
 export const getLeads = async () => {
@@ -625,11 +697,18 @@ const writeUserToSpreadsheet = async (spreadsheetId, payload) => {
   return toDirectoryUser(payload);
 };
 
+const ensureUserDetailsSheet = async () => {
+  const spreadsheetId = employeesId();
+  await withNotFound('User details', spreadsheetId, () =>
+    ensureRequiredSheets(spreadsheetId, [[SHEETS.USERS, HEADERS[SHEETS.USERS]]])
+  );
+  return spreadsheetId;
+};
+
 export const getUsers = async () => {
-  await ensureTrainingSheets();
   if (isDemoMode()) return (await mock.mockGetObjects(SHEETS.USERS)).map(toDirectoryUser);
-  await ensureRequiredSheets(employeesId(), [[SHEETS.USERS, HEADERS[SHEETS.USERS]]]);
-  return listUsersFrom(employeesId());
+  const spreadsheetId = await ensureUserDetailsSheet();
+  return listUsersFrom(spreadsheetId);
 };
 
 export const upsertDirectoryUser = async ({ name, email }) => {
@@ -655,37 +734,41 @@ export const upsertDirectoryUser = async ({ name, email }) => {
     return toDirectoryUser(payload);
   }
 
+  let spreadsheetId = '';
+  try {
+    spreadsheetId = await ensureUserDetailsSheet();
+  } catch (error) {
+    if (isNotFoundError(error)) throw missingSpreadsheetError('User details', getConfig().employeesSpreadsheetId);
+    throw new Error(
+      error.message ||
+        'User details spreadsheet ID is missing in Workbook_Config. Add a Users row with that spreadsheet ID.'
+    );
+  }
+
   let users = [];
   try {
-    users = await getUsers();
+    users = await listUsersFrom(spreadsheetId);
   } catch (error) {
+    if (isNotFoundError(error)) throw missingSpreadsheetError('User details', spreadsheetId);
     if (!isPermissionError(error)) throw error;
   }
+  const existing = users.find((row) => sameEmail(row.Email, address));
   const payload = {
     Username: username,
     Email: address,
-    'User Type': 'Sales',
-    'User Role': users.length === 0 ? 'Admin' : 'Team member',
-    'Calendar ID': 'primary',
+    'User Type': existing?.['User Type'] || 'Sales',
+    'User Role': existing?.['User Role'] || (users.length === 0 ? 'Admin' : 'Team member'),
+    'Calendar ID': existing?.['Calendar ID'] || 'primary',
     'Last Login': loggedInAt,
     Registered: 'Yes',
   };
 
-  let employeesSheetId = '';
   try {
-    employeesSheetId = employeesId();
-  } catch (error) {
-    throw new Error(
-      error.message || 'An employees spreadsheet ID is missing. Admin can set it under Google sheets.'
-    );
-  }
-
-  try {
-    const saved = await writeUserToSpreadsheet(employeesSheetId, payload);
+    const saved = await writeUserToSpreadsheet(spreadsheetId, payload);
     return toDirectoryUser(saved);
   } catch (error) {
     throw new Error(
-      describeSheetWriteError(error, employeesSheetId, 'employees', address) ||
+      describeSheetWriteError(error, spreadsheetId, 'user details', address) ||
         `Google sign-in could not register ${address} on the Users sheet.`
     );
   }

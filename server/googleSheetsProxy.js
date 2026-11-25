@@ -1,11 +1,19 @@
-import { createSign } from 'node:crypto';
+import { exec } from 'node:child_process';
+import { createHash, createHmac, createSign } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { promisify } from 'node:util';
+
+const execAsync = promisify(exec);
 
 const SHEETS_SCOPE = [
   'https://www.googleapis.com/auth/spreadsheets',
   'https://www.googleapis.com/auth/drive.metadata.readonly',
 ].join(' ');
+
+const HARDCODED_CONFIG_SPREADSHEET_ID = '16O-ay51W8RFyTNS-lokAciuAkxj_P5r9hbqWuefz45s';
+const HARDCODED_SERVICE_ACCOUNT_EMAIL = 'crm-271@pappyjoe-crm.iam.gserviceaccount.com';
 
 const isFilled = (value) => {
   const text = String(value || '').trim();
@@ -22,32 +30,213 @@ const parseJson = (raw) => {
   }
 };
 
-const loadServiceAccount = (env = process.env) => {
+const accountFromJson = (parsed, source) => {
+  if (!parsed?.client_email || !parsed?.private_key) {
+    throw new Error(`Service account JSON from ${source} must include client_email and private_key.`);
+  }
+  return { email: parsed.client_email, key: normalizeKey(parsed.private_key) };
+};
+
+const parseHttpsS3Url = (url) => {
+  const text = String(url || '').trim();
+  const virtual = text.match(/^https:\/\/(.+)\.s3\.([a-z0-9-]+)\.amazonaws\.com\/(.+)$/i);
+  if (virtual) {
+    const key = decodeURIComponent(virtual[3].split('?')[0]);
+    return { bucket: virtual[1], key, region: virtual[2], uri: `s3://${virtual[1]}/${key}`, httpsUrl: text };
+  }
+  const pathStyle = text.match(/^https:\/\/s3[.-]([a-z0-9-]+)\.amazonaws\.com\/([^/]+)\/(.+)$/i);
+  if (pathStyle) {
+    const key = decodeURIComponent(pathStyle[3].split('?')[0]);
+    return { bucket: pathStyle[2], key, region: pathStyle[1], uri: `s3://${pathStyle[2]}/${key}`, httpsUrl: text };
+  }
+  return { httpsUrl: text, uri: '', bucket: '', key: '', region: '' };
+};
+
+const parseS3Location = (env = process.env) => {
+  const uri = String(env.GOOGLE_SERVICE_ACCOUNT_S3_URI || env.GOOGLE_SERVICE_ACCOUNT_S3_URL || '').trim();
+  if (/^s3:\/\//i.test(uri)) {
+    const fromUri = uri.match(/^s3:\/\/([^/]+)\/(.+)$/i);
+    if (fromUri) return { bucket: fromUri[1], key: fromUri[2], uri: `s3://${fromUri[1]}/${fromUri[2]}` };
+  }
+  if (/^https?:\/\//i.test(uri)) return parseHttpsS3Url(uri);
+  const bucket = String(env.GOOGLE_SERVICE_ACCOUNT_S3_BUCKET || '').trim();
+  const key = String(env.GOOGLE_SERVICE_ACCOUNT_S3_KEY || '').trim();
+  if (bucket && key) return { bucket, key, uri: `s3://${bucket}/${key}` };
+  return null;
+};
+
+const sha256Hex = (value) => createHash('sha256').update(value, 'utf8').digest('hex');
+const hmac = (key, value) => createHmac('sha256', key).update(value, 'utf8').digest();
+
+const iniValue = (block, name) => {
+  const match = String(block || '').match(new RegExp(`^${name}\\s*=\\s*(.+)$`, 'im'));
+  return match ? match[1].trim() : '';
+};
+
+const readAwsProfile = (profile = 'default') => {
+  try {
+    const creds = readFileSync(join(homedir(), '.aws', 'credentials'), 'utf8');
+    const section = creds.match(new RegExp(`\\[${profile}\\]([\\s\\S]*?)(?=\\[|$)`));
+    return {
+      id: iniValue(section?.[1], 'aws_access_key_id'),
+      secret: iniValue(section?.[1], 'aws_secret_access_key'),
+      token: iniValue(section?.[1], 'aws_session_token'),
+    };
+  } catch {
+    return { id: '', secret: '', token: '' };
+  }
+};
+
+const loadAwsCredentials = (env = process.env) => {
+  const id = String(env.AWS_ACCESS_KEY_ID || '').trim() || readAwsProfile().id;
+  const secret = String(env.AWS_SECRET_ACCESS_KEY || '').trim() || readAwsProfile().secret;
+  const token = String(env.AWS_SESSION_TOKEN || '').trim() || readAwsProfile().token;
+  const region = String(env.AWS_REGION || env.AWS_DEFAULT_REGION || '').trim();
+  if (!id || !secret) return null;
+  return { id, secret, token, region };
+};
+
+const signedS3Get = async (location, credentials) => {
+  const region = location.region || credentials.region || 'ap-south-1';
+  const host = `${location.bucket}.s3.${region}.amazonaws.com`;
+  const canonicalKey = location.key.split('/').map(encodeURIComponent).join('/');
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
+  const dateStamp = amzDate.slice(0, 8);
+  const payloadHash = sha256Hex('');
+  const extra = credentials.token ? `x-amz-security-token:${credentials.token}\n` : '';
+  const signedHeaders = credentials.token
+    ? 'host;x-amz-content-sha256;x-amz-date;x-amz-security-token'
+    : 'host;x-amz-content-sha256;x-amz-date';
+  const canonicalHeaders = `host:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n${extra}`;
+  const canonicalRequest = `GET\n/${canonicalKey}\n\n${canonicalHeaders}\n${signedHeaders}\n${payloadHash}`;
+  const scope = `${dateStamp}/${region}/s3/aws4_request`;
+  const stringToSign = `AWS4-HMAC-SHA256\n${amzDate}\n${scope}\n${sha256Hex(canonicalRequest)}`;
+  const kDate = hmac(`AWS4${credentials.secret}`, dateStamp);
+  const kRegion = hmac(kDate, region);
+  const kService = hmac(kRegion, 's3');
+  const kSigning = hmac(kService, 'aws4_request');
+  const signature = createHmac('sha256', kSigning).update(stringToSign, 'utf8').digest('hex');
+  const response = await fetch(`https://${host}/${canonicalKey}`, {
+    headers: {
+      host,
+      'x-amz-date': amzDate,
+      'x-amz-content-sha256': payloadHash,
+      ...(credentials.token ? { 'x-amz-security-token': credentials.token } : {}),
+      Authorization: `AWS4-HMAC-SHA256 Credential=${credentials.id}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
+    },
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Signed S3 GET failed (${response.status}).`);
+  }
+  return parseJson(text);
+};
+
+const loadJsonFromHttps = async (url) => {
+  const response = await fetch(url);
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Could not download service account JSON from HTTPS (${response.status}).`);
+  }
+  return parseJson(text);
+};
+
+const loadJsonFromS3Cli = async (location) => {
+  const command = `aws s3 cp "${location.uri}" -`;
+  try {
+    const { stdout } = await execAsync(command, {
+      maxBuffer: 2 * 1024 * 1024,
+      env: process.env,
+    });
+    return parseJson(stdout);
+  } catch (error) {
+    const detail = String(error.stderr || error.message || error);
+    throw new Error(`AWS CLI s3 cp failed. ${detail}`);
+  }
+};
+
+const loadRemoteServiceAccountJson = async (location, env = process.env) => {
+  const errors = [];
+  if (location.httpsUrl) {
+    try {
+      return await loadJsonFromHttps(location.httpsUrl);
+    } catch (error) {
+      errors.push(error.message);
+    }
+  }
+  const credentials = loadAwsCredentials(env);
+  if (credentials && location.bucket && location.key) {
+    try {
+      return await signedS3Get(location, credentials);
+    } catch (error) {
+      errors.push(error.message);
+    }
+  }
+  if (location.uri) {
+    try {
+      return await loadJsonFromS3Cli(location);
+    } catch (error) {
+      errors.push(error.message);
+    }
+  }
+  throw new Error(
+    `S3 blocked the JSON (private object). HTTPS 403, no AWS_ACCESS_KEY_ID in .env, and AWS CLI is not installed. Download the file from the S3 console and set GOOGLE_SERVICE_ACCOUNT_FILE=./secrets/pappyjoe-crm-c1ce8651f5b1.json, or add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to .env with s3:GetObject on ${location.uri || location.httpsUrl}.`
+  );
+};
+
+let accountCache = { fingerprint: '', account: null };
+
+const accountFingerprint = (env) =>
+  [
+    env.GOOGLE_SERVICE_ACCOUNT_FILE,
+    env.GOOGLE_SERVICE_ACCOUNT_S3_URI,
+    env.GOOGLE_SERVICE_ACCOUNT_S3_BUCKET,
+    env.GOOGLE_SERVICE_ACCOUNT_S3_KEY,
+    env.GOOGLE_SERVICE_ACCOUNT_S3_URL,
+    env.GOOGLE_SERVICE_ACCOUNT_JSON,
+    env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+  ].join('|');
+
+const loadServiceAccount = async (env = process.env) => {
+  const fingerprint = accountFingerprint(env);
+  if (accountCache.fingerprint === fingerprint && accountCache.account) return accountCache.account;
+
   const file = String(env.GOOGLE_SERVICE_ACCOUNT_FILE || '').trim();
   if (file) {
     const path = resolve(process.cwd(), file);
     if (!existsSync(path)) {
       throw new Error(`Service account file was not found: ${path}`);
     }
-    const parsed = parseJson(readFileSync(path, 'utf8'));
-    if (!parsed?.client_email || !parsed?.private_key) {
-      throw new Error('Service account JSON must include client_email and private_key.');
-    }
-    return { email: parsed.client_email, key: normalizeKey(parsed.private_key) };
+    const account = accountFromJson(parseJson(readFileSync(path, 'utf8')), path);
+    accountCache = { fingerprint, account };
+    return account;
+  }
+
+  const s3Location = parseS3Location(env);
+  if (s3Location) {
+    const account = accountFromJson(
+      await loadRemoteServiceAccountJson(s3Location, env),
+      s3Location.httpsUrl || s3Location.uri
+    );
+    accountCache = { fingerprint, account };
+    return account;
   }
 
   const inline = String(env.GOOGLE_SERVICE_ACCOUNT_JSON || '').trim();
   if (inline) {
-    const parsed = parseJson(inline);
-    if (!parsed?.client_email || !parsed?.private_key) {
-      throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON must be the full Google JSON key.');
-    }
-    return { email: parsed.client_email, key: normalizeKey(parsed.private_key) };
+    const account = accountFromJson(parseJson(inline), 'GOOGLE_SERVICE_ACCOUNT_JSON');
+    accountCache = { fingerprint, account };
+    return account;
   }
 
   const email = String(env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '').trim();
   const key = normalizeKey(env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY);
-  if (email && key) return { email, key };
+  if (email && key) {
+    const account = { email, key };
+    accountCache = { fingerprint, account };
+    return account;
+  }
   return null;
 };
 
@@ -57,9 +246,12 @@ const allowedSpreadsheetIds = (env = process.env) =>
       env.VITE_GOOGLE_SPREADSHEET_ID,
       env.VITE_GOOGLE_TRAINING_SPREADSHEET_ID,
       env.VITE_GOOGLE_EMPLOYEES_SPREADSHEET_ID,
+      env.VITE_GOOGLE_CONFIG_SPREADSHEET_ID,
+      HARDCODED_CONFIG_SPREADSHEET_ID,
       env.GOOGLE_SPREADSHEET_ID,
       env.GOOGLE_TRAINING_SPREADSHEET_ID,
       env.GOOGLE_EMPLOYEES_SPREADSHEET_ID,
+      env.GOOGLE_CONFIG_SPREADSHEET_ID,
       ...(String(env.GOOGLE_ALLOWED_SPREADSHEET_IDS || '')
         .split(',')
         .map((value) => value.trim())),
@@ -68,13 +260,22 @@ const allowedSpreadsheetIds = (env = process.env) =>
       .filter(isFilled)
   );
 
-export const getSheetsAppStatus = (env = process.env) => {
+export const getSheetsAppStatus = async (env = process.env) => {
   try {
-    const account = loadServiceAccount(env);
-    if (!account) return { enabled: false, shareWith: '' };
+    const account = await loadServiceAccount(env);
+    if (!account) {
+      return {
+        enabled: false,
+        shareWith: String(env.GOOGLE_SERVICE_ACCOUNT_EMAIL || HARDCODED_SERVICE_ACCOUNT_EMAIL).trim(),
+      };
+    }
     return { enabled: true, shareWith: account.email };
   } catch (error) {
-    return { enabled: false, shareWith: '', error: error.message };
+    return {
+      enabled: false,
+      shareWith: String(env.GOOGLE_SERVICE_ACCOUNT_EMAIL || HARDCODED_SERVICE_ACCOUNT_EMAIL).trim(),
+      error: error.message,
+    };
   }
 };
 
@@ -99,10 +300,10 @@ const signJwt = (email, key) => {
 let tokenCache = { token: '', exp: 0, email: '' };
 
 const getServiceToken = async (env) => {
-  const account = loadServiceAccount(env);
+  const account = await loadServiceAccount(env);
   if (!account) {
     throw new Error(
-      'App-level Sheets access is not configured. Add GOOGLE_SERVICE_ACCOUNT_FILE (JSON key) in .env, then share both CRM sheets with that service account as Editor.'
+      `App-level Sheets access is not configured. Set GOOGLE_SERVICE_ACCOUNT_S3_URI (s3://bucket/key.json) or GOOGLE_SERVICE_ACCOUNT_FILE for ${HARDCODED_SERVICE_ACCOUNT_EMAIL}, then share the configuration spreadsheet with that email as Editor.`
     );
   }
   if (tokenCache.token && tokenCache.email === account.email && tokenCache.exp > Date.now() + 60_000) {
@@ -126,6 +327,39 @@ const getServiceToken = async (env) => {
     exp: Date.now() + Number(data.expires_in || 3600) * 1000,
   };
   return tokenCache.token;
+};
+
+export const serviceAccountFetch = async (env, url, { method = 'GET', body } = {}) => {
+  const token = await getServiceToken(env);
+  const googleBody = body == null ? undefined : typeof body === 'string' ? body : JSON.stringify(body);
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(googleBody ? { 'Content-Type': 'application/json' } : {}),
+    },
+    body: method === 'GET' || method === 'HEAD' ? undefined : googleBody,
+  });
+  const text = await response.text();
+  let data = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { error: text };
+    }
+  }
+  if (!response.ok) {
+    const account = await getSheetsAppStatus(env);
+    const googleMessage = data.error?.message || data.error || response.statusText;
+    const shareWith = account.shareWith || HARDCODED_SERVICE_ACCOUNT_EMAIL;
+    throw new Error(
+      response.status === 403
+        ? `Share the configuration spreadsheet with ${shareWith} as Editor. Google said: ${googleMessage}`
+        : googleMessage
+    );
+  }
+  return data;
 };
 
 const spreadsheetIdFromUrl = (url) => {
@@ -221,7 +455,7 @@ const proxyGoogle = async (env, payload) => {
     }
   }
   if (!response.ok) {
-    const account = getSheetsAppStatus(env);
+    const account = await getSheetsAppStatus(env);
     const googleMessage = body.error?.message || body.error || response.statusText;
     return {
       status: response.status,
@@ -239,14 +473,20 @@ const proxyGoogle = async (env, payload) => {
 export const handleSheetsHttp = async (req, env = process.env) => {
   const method = req.method || 'GET';
   if (method === 'OPTIONS') return { status: 204, body: {} };
-  if (method === 'GET') return { status: 200, body: getSheetsAppStatus(env) };
+  if (method === 'GET') return { status: 200, body: await getSheetsAppStatus(env) };
   if (method !== 'POST') return { status: 405, body: { error: 'Use GET or POST.' } };
-
-  const user = await verifyUser(req.headers.authorization || req.headers.Authorization);
-  if (!user) return { status: 401, body: { error: 'Sign in with Google first.' } };
 
   try {
     const payload = await readJsonBody(req);
+    const user = await verifyUser(req.headers.authorization || req.headers.Authorization);
+    const configId = String(
+      env.VITE_GOOGLE_CONFIG_SPREADSHEET_ID || env.GOOGLE_CONFIG_SPREADSHEET_ID || HARDCODED_CONFIG_SPREADSHEET_ID || ''
+    ).trim();
+    const targetId = spreadsheetIdFromUrl(payload.url);
+    const configOnly = Boolean(configId && targetId === configId);
+    if (!user && !configOnly) {
+      return { status: 401, body: { error: 'Sign in with Google first.' } };
+    }
     return await proxyGoogle(env, payload);
   } catch (error) {
     return { status: 400, body: { error: error.message || 'Sheets proxy request failed.' } };

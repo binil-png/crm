@@ -316,7 +316,7 @@ const seedDb = () => {
       HEADERS[SHEETS.WORKBOOK_CONFIG],
       [WORKBOOK_KEYS.SALES, 'admin@example.com', 'demo-sales', nowIso(), 'admin@example.com'],
       [WORKBOOK_KEYS.TRAINING, 'training@example.com', 'demo-training', nowIso(), 'admin@example.com'],
-      [WORKBOOK_KEYS.EMPLOYEES, 'training@example.com', 'demo-training', nowIso(), 'admin@example.com'],
+      [WORKBOOK_KEYS.USERS, 'training@example.com', 'demo-training', nowIso(), 'admin@example.com'],
     ],
   };
 };
@@ -485,14 +485,16 @@ export const mockGetWorkbookConfig = () => {
   const rowOf = (name) => rows.find((row) => String(row.Workbook || '').trim() === name) || {};
   const sales = rowOf(WORKBOOK_KEYS.SALES);
   const training = rowOf(WORKBOOK_KEYS.TRAINING);
-  const employees = rowOf(WORKBOOK_KEYS.EMPLOYEES);
+  const users = String(rowOf(WORKBOOK_KEYS.USERS)['Spreadsheet ID'] || '').trim()
+    ? rowOf(WORKBOOK_KEYS.USERS)
+    : rowOf(WORKBOOK_KEYS.EMPLOYEES);
   return {
     salesAccount: String(sales['Google Account'] || 'admin@example.com').trim(),
     spreadsheetId: String(sales['Spreadsheet ID'] || 'demo-sales').trim(),
     trainingAccount: String(training['Google Account'] || 'training@example.com').trim(),
     trainingSpreadsheetId: String(training['Spreadsheet ID'] || 'demo-training').trim(),
-    employeesAccount: String(employees['Google Account'] || training['Google Account'] || 'training@example.com').trim(),
-    employeesSpreadsheetId: String(employees['Spreadsheet ID'] || training['Spreadsheet ID'] || 'demo-training').trim(),
+    employeesAccount: String(users['Google Account'] || training['Google Account'] || 'training@example.com').trim(),
+    employeesSpreadsheetId: String(users['Spreadsheet ID'] || training['Spreadsheet ID'] || 'demo-training').trim(),
   };
 };
 
@@ -503,7 +505,7 @@ export const mockSaveWorkbookConfig = (config) => {
     HEADERS[SHEETS.WORKBOOK_CONFIG],
     [WORKBOOK_KEYS.SALES, config.salesAccount, config.spreadsheetId, at, 'admin@example.com'],
     [WORKBOOK_KEYS.TRAINING, config.trainingAccount, config.trainingSpreadsheetId, at, 'admin@example.com'],
-    [WORKBOOK_KEYS.EMPLOYEES, config.employeesAccount, config.employeesSpreadsheetId, at, 'admin@example.com'],
+    [WORKBOOK_KEYS.USERS, config.employeesAccount, config.employeesSpreadsheetId, at, 'admin@example.com'],
   ];
   writeDb(db);
   return config;

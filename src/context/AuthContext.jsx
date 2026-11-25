@@ -10,7 +10,7 @@ import {
   setAccessToken,
 } from '../services/googleApi';
 import { resetMockDb } from '../services/mockBackend';
-import { ensureWorkbook, isPermissionError, loadWorkbookConfig, upsertDirectoryUser } from '../services/sheetsService';
+import { loadWorkbookConfig, upsertDirectoryUser } from '../services/sheetsService';
 import { useCrmStore } from '../store/crmStore';
 import {
   DEMO_ACCOUNTS,
@@ -57,13 +57,7 @@ const fromSheetRow = (row) => ({
 });
 
 const prepareWorkbooks = async () => {
-  await ensureWorkbook();
-  try {
-    await loadWorkbookConfig();
-  } catch (error) {
-    if (!isPermissionError(error)) throw error;
-  }
-  await ensureWorkbook();
+  await loadWorkbookConfig();
 };
 
 export function AuthProvider({ children }) {
@@ -184,11 +178,7 @@ export function AuthProvider({ children }) {
         sessionStorage.setItem(STORAGE_KEYS.TOKEN_EXP, String(Date.now() + expiresIn * 1000));
       }
       await initGapi();
-      try {
-        await prepareWorkbooks();
-      } catch (error) {
-        if (!isPermissionError(error)) throw error;
-      }
+      await prepareWorkbooks();
       const row = await upsertDirectoryUser({
         name: profile?.name || profile?.given_name || profile?.Username,
         email: profile?.email,
@@ -252,8 +242,9 @@ export function AuthProvider({ children }) {
   const login = async () => {
     setError('');
     disableLocalDemo();
-    if (!getConfig().clientId) {
-      setError('Add a Google OAuth client ID, sales spreadsheet ID, and training spreadsheet ID first.');
+    const cfg = getConfig();
+    if (!cfg.clientId || !cfg.configSpreadsheetId) {
+      setError('Add a Google OAuth client ID and configuration spreadsheet ID first.');
       return;
     }
     googleLogin();

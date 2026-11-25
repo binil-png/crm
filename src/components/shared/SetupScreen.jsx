@@ -7,16 +7,31 @@ export default function SetupScreen({ onSaved }) {
   const [choice, setChoice] = useState('');
   const [clientId, setClientId] = useState(existing.clientId);
   const [apiKey, setApiKey] = useState(existing.apiKey);
+  const [configSpreadsheetId, setConfigSpreadsheetId] = useState(existing.configSpreadsheetId);
   const [spreadsheetId, setSpreadsheetId] = useState(existing.spreadsheetId);
   const [trainingSpreadsheetId, setTrainingSpreadsheetId] = useState(existing.trainingSpreadsheetId);
+  const [employeesSpreadsheetId, setEmployeesSpreadsheetId] = useState(existing.employeesSpreadsheetId);
   const [calendarId, setCalendarId] = useState(existing.calendarId || 'primary');
 
   const saveGoogle = () => {
-    if (!clientId.trim() || !spreadsheetId.trim() || !trainingSpreadsheetId.trim()) {
-      window.alert('Google Client ID, sales spreadsheet ID, and training spreadsheet ID are required.');
+    if (!clientId.trim()) {
+      window.alert('Google Client ID is required.');
       return;
     }
-    saveConfig({ clientId, apiKey, spreadsheetId, trainingSpreadsheetId, calendarId, demoMode: false });
+    if (!configSpreadsheetId.trim()) {
+      window.alert('Configuration spreadsheet ID is required.');
+      return;
+    }
+    saveConfig({
+      clientId,
+      apiKey,
+      configSpreadsheetId,
+      spreadsheetId,
+      trainingSpreadsheetId,
+      employeesSpreadsheetId,
+      calendarId,
+      demoMode: false,
+    });
     onSaved(getConfig());
   };
 
@@ -82,6 +97,18 @@ export default function SetupScreen({ onSaved }) {
               placeholder="Used for gapi client init"
             />
 
+            <label className="mt-4 block text-sm font-medium">Configuration spreadsheet ID</label>
+            <input
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+              value={configSpreadsheetId}
+              onChange={(e) => setConfigSpreadsheetId(e.target.value)}
+              placeholder="Google Sheet that stores Sales, Training, and User details IDs"
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Required. This sheet’s Workbook_Config tab stores the three data spreadsheet IDs. Put
+              VITE_GOOGLE_CONFIG_SPREADSHEET_ID in .env, or paste the ID here.
+            </p>
+
             <label className="mt-4 block text-sm font-medium">Sales spreadsheet ID</label>
             <input
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
@@ -95,12 +122,19 @@ export default function SetupScreen({ onSaved }) {
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
               value={trainingSpreadsheetId}
               onChange={(e) => setTrainingSpreadsheetId(e.target.value)}
-              placeholder="Training_Clients, Training_Sessions, Users, Daily_Worklogs_Leaves"
+              placeholder="Training clients, sessions, and work logs"
+            />
+
+            <label className="mt-4 block text-sm font-medium">User details spreadsheet ID</label>
+            <input
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+              value={employeesSpreadsheetId}
+              onChange={(e) => setEmployeesSpreadsheetId(e.target.value)}
+              placeholder="Users tab only"
             />
             <p className="mt-1 text-xs text-slate-500">
-              Sales and training can belong to different Google accounts. After sign-in, Admin can set each
-              spreadsheet and owner under Google sheets. Employee details are saved on the employees sheet
-              configured there.
+              Use a different spreadsheet for each of these three. After sign-in, Admin can change the IDs; they
+              are saved on the configuration sheet, not in the data workbooks.
             </p>
 
             <label className="mt-4 block text-sm font-medium">Calendar ID</label>

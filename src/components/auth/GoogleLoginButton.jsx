@@ -28,13 +28,13 @@ export default function GoogleLoginButton() {
               <h2 className="font-semibold">Google Sheets and Calendar</h2>
             </div>
             <p className="mt-2 flex-1 text-sm text-slate-600">
-              Live data. Leads and users come from your form Google Sheets. Sales calls and training sessions are written
-              to Google Calendar.
+              Live data. Sign-in reads the configuration sheet for the user details and sales spreadsheet IDs, then
+              authenticates against the Users tab. Sales calls and training sessions go to Google Calendar.
             </p>
             <p className="mt-2 text-xs text-slate-500">
               {appSheets.enabled
-                ? `Sheets are opened by the CRM app. Share both workbooks with ${appSheets.shareWith} as Editor.`
-                : 'Sign in with the Gmail that has Editor access on the sales and training sheets.'}
+                ? `Sheets are opened by the CRM app. Share the configuration, sales, training, and user details spreadsheets with ${appSheets.shareWith} as Editor.`
+                : 'Sign in with a Gmail that has Editor access on the configuration sheet and on the sales, training, and user details spreadsheets listed there.'}
             </p>
             <button
               type="button"
@@ -52,8 +52,8 @@ export default function GoogleLoginButton() {
               <h2 className="font-semibold">Local setup</h2>
             </div>
             <p className="mt-2 flex-1 text-sm text-slate-600">
-              Test in this browser only. Sample leads, users, training, and work logs are saved in localStorage. Google
-              Sheets and Calendar are not used.
+              Test in this browser only. Sample leads, users, training, and work logs stay in localStorage. Sales,
+              Training, and User details spreadsheet IDs are still loaded from the configuration Google Sheet.
             </p>
             <p className="mt-2 text-xs text-slate-500">
               Choose a user. Privileges follow User Type and User Role. Data key: {STORAGE_KEYS.MOCK_DB}.

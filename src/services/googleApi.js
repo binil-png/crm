@@ -1,5 +1,5 @@
 import { gapi } from 'gapi-script';
-import { DISCOVERY_DOCS, STORAGE_KEYS } from '../utils/constants';
+import { DISCOVERY_DOCS, HARDCODED_CONFIG_SPREADSHEET_ID, STORAGE_KEYS } from '../utils/constants';
 
 let gapiReady = false;
 let accessToken = sessionStorage.getItem(STORAGE_KEYS.TOKEN) || '';
@@ -36,8 +36,7 @@ export const getConfig = () => {
     storedOrEnv(STORAGE_KEYS.TRAINING_SPREADSHEET_ID, 'VITE_GOOGLE_TRAINING_SPREADSHEET_ID');
   const employeesSpreadsheetId =
     workbookOverride.employeesSpreadsheetId ||
-    storedOrEnv(STORAGE_KEYS.EMPLOYEES_SPREADSHEET_ID, 'VITE_GOOGLE_EMPLOYEES_SPREADSHEET_ID') ||
-    trainingSpreadsheetId;
+    storedOrEnv(STORAGE_KEYS.EMPLOYEES_SPREADSHEET_ID, 'VITE_GOOGLE_EMPLOYEES_SPREADSHEET_ID');
   return {
     clientId: localStorage.getItem(STORAGE_KEYS.CLIENT_ID) || envValue('VITE_GOOGLE_CLIENT_ID'),
     apiKey: sanitizeApiKey(localStorage.getItem(STORAGE_KEYS.API_KEY) || envValue('VITE_GOOGLE_API_KEY')),
@@ -45,8 +44,10 @@ export const getConfig = () => {
     trainingSpreadsheetId,
     employeesSpreadsheetId,
     configSpreadsheetId:
+      envValue('VITE_GOOGLE_CONFIG_SPREADSHEET_ID') ||
+      HARDCODED_CONFIG_SPREADSHEET_ID ||
       localStorage.getItem(STORAGE_KEYS.CONFIG_SPREADSHEET_ID) ||
-      storedOrEnv(STORAGE_KEYS.SPREADSHEET_ID, 'VITE_GOOGLE_SPREADSHEET_ID'),
+      '',
     salesAccount: workbookOverride.salesAccount || localStorage.getItem(STORAGE_KEYS.SALES_GOOGLE_ACCOUNT) || '',
     trainingAccount:
       workbookOverride.trainingAccount || localStorage.getItem(STORAGE_KEYS.TRAINING_GOOGLE_ACCOUNT) || '',
@@ -85,11 +86,8 @@ export const saveConfig = ({
   calendarId,
   demoMode,
 } = {}) => {
-  if (demoMode) {
-    localStorage.setItem(STORAGE_KEYS.DEMO_MODE, '1');
-    return;
-  }
-  localStorage.removeItem(STORAGE_KEYS.DEMO_MODE);
+  if (demoMode === true) localStorage.setItem(STORAGE_KEYS.DEMO_MODE, '1');
+  else if (demoMode === false) localStorage.removeItem(STORAGE_KEYS.DEMO_MODE);
   if (clientId) localStorage.setItem(STORAGE_KEYS.CLIENT_ID, clientId.trim());
   const safeApiKey = sanitizeApiKey(apiKey);
   if (safeApiKey) localStorage.setItem(STORAGE_KEYS.API_KEY, safeApiKey);
@@ -100,7 +98,11 @@ export const saveConfig = ({
     writeConfigValue(STORAGE_KEYS.EMPLOYEES_SPREADSHEET_ID, employeesSpreadsheetId);
   }
   if (configSpreadsheetId) localStorage.setItem(STORAGE_KEYS.CONFIG_SPREADSHEET_ID, configSpreadsheetId.trim());
-  else if (spreadsheetId && !localStorage.getItem(STORAGE_KEYS.CONFIG_SPREADSHEET_ID)) {
+  else if (
+    spreadsheetId &&
+    !localStorage.getItem(STORAGE_KEYS.CONFIG_SPREADSHEET_ID) &&
+    !envValue('VITE_GOOGLE_CONFIG_SPREADSHEET_ID')
+  ) {
     localStorage.setItem(STORAGE_KEYS.CONFIG_SPREADSHEET_ID, spreadsheetId.trim());
   }
   if (salesAccount !== undefined) writeConfigValue(STORAGE_KEYS.SALES_GOOGLE_ACCOUNT, salesAccount);
@@ -166,7 +168,7 @@ export const getTrainingSpreadsheetId = () => getConfig().trainingSpreadsheetId;
 
 export const getEmployeesSpreadsheetId = () => getConfig().employeesSpreadsheetId || getConfig().trainingSpreadsheetId;
 
-export const getConfigSpreadsheetId = () => getConfig().configSpreadsheetId || getConfig().spreadsheetId;
+export const getConfigSpreadsheetId = () => getConfig().configSpreadsheetId;
 
 export const getCalendarId = () => getConfig().calendarId || 'primary';
 
@@ -236,15 +238,64 @@ const parseError = async (response) => {
   }
 };
 
-export const googleFetch = async (url, options = {}) => {
+const isConfigSpreadsheetUrl = (url) => {
+  const id = envValue('VITE_GOOGLE_CONFIG_SPREADSHEET_ID') || HARDCODED_CONFIG_SPREADSHEET_ID;
+  if (!id) return false;
+  const text = String(url || '');
+  return text.includes(`/spreadsheets/${id}`) || text.includes(`/files/${id}`);
+};
+
+const realAccessToken = () => {
   const token = getAccessToken();
-  if (!token) throw new Error('Not signed in.');
-  const useAppSheets = isAppSheetsEnabled() && isAppSheetsUrl(url);
+  if (!token || token === 'demo-token') return '';
+  return token;
+};
+
+export const hasGoogleSheetAccess = () => Boolean(realAccessToken()) || isAppSheetsEnabled();
+
+const readConfigSheetResponse = async (response) => {
+  let data = {};
+  try {
+    data = await response.json();
+  } catch {
+    data = {};
+  }
+  if (!response.ok) {
+    throw new Error(data.error || 'Could not load the configuration spreadsheet.');
+  }
+  return data;
+};
+
+export const fetchPublicWorkbookConfig = async () => {
+  const response = await fetch('/api/config-sheet');
+  return readConfigSheetResponse(response);
+};
+
+export const savePublicWorkbookConfig = async (values) => {
+  const response = await fetch('/api/config-sheet', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values }),
+  });
+  return readConfigSheetResponse(response);
+};
+
+export const googleFetch = async (url, options = {}) => {
+  const token = realAccessToken();
+  const configUrl = isConfigSpreadsheetUrl(url);
+  const useAppSheets = isAppSheetsEnabled() && isAppSheetsUrl(url) && Boolean(token || configUrl);
+  if (!useAppSheets && !token) {
+    throw new Error(
+      configUrl
+        ? 'LocalStorage mode cannot open the configuration spreadsheet. Add the JSON key for crm-271@pappyjoe-crm.iam.gserviceaccount.com as GOOGLE_SERVICE_ACCOUNT_FILE, and share the configuration sheet with that email as Editor.'
+        : 'Not signed in.'
+    );
+  }
   const response = useAppSheets
     ? await fetch(sheetsProxyUrl(), {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -256,7 +307,7 @@ export const googleFetch = async (url, options = {}) => {
     : await fetch(url, {
         ...options,
         headers: {
-          Authorization: `Bearer ${token}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           'Content-Type': 'application/json',
           ...(options.headers || {}),
         },

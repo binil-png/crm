@@ -81,7 +81,7 @@ export const SHEETS = {
   LOGS: 'Daily_Worklogs_Leaves',
 };
 
-export const TRAINING_WORKBOOK_SHEETS = [SHEETS.CLIENTS, SHEETS.SESSIONS, SHEETS.USERS, SHEETS.LOGS];
+export const TRAINING_WORKBOOK_SHEETS = [SHEETS.CLIENTS, SHEETS.SESSIONS, SHEETS.LOGS];
 
 export const LEAD_HEADERS = [
   'Sl No',
@@ -121,7 +121,10 @@ export const WORKBOOK_KEYS = {
   SALES: 'Sales',
   TRAINING: 'Training',
   EMPLOYEES: 'Employees',
+  USERS: 'Users',
 };
+
+export const HARDCODED_CONFIG_SPREADSHEET_ID = '16O-ay51W8RFyTNS-lokAciuAkxj_P5r9hbqWuefz45s';
 
 export const WORKBOOK_CONFIG_HEADERS = [
   'Workbook',
