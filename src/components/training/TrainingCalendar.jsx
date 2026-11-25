@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, GripVertical } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
@@ -93,6 +93,44 @@ const formatClockRange = (hour, minute, minutes) => {
   return `${formatClock(hour, minute)} – ${formatClock(end.hour, end.minute)}`;
 };
 
+const DRAG_THRESHOLD_PX = 6;
+
+const slotFromPointer = (event, column) => {
+  const rect = column.getBoundingClientRect();
+  const index = Math.max(0, Math.min(slotCount - 1, Math.floor((event.clientY - rect.top) / ROW_HEIGHT)));
+  return slots[index];
+};
+
+const isMovableSession = (session) => {
+  const status = String(session?.Status || '').trim().toLowerCase();
+  return status !== 'completed' && status !== 'cancelled';
+};
+
+const slotFromClientPoint = (clientX, clientY, calendarEl) => {
+  if (!calendarEl || (!clientX && !clientY)) return null;
+  const columns = calendarEl.querySelectorAll('[data-day-column]');
+  for (const column of columns) {
+    const rect = column.getBoundingClientRect();
+    if (clientX < rect.left || clientX >= rect.right) continue;
+    const clampedY = Math.min(Math.max(clientY, rect.top), rect.bottom - 1);
+    const slot = slotFromPointer({ clientY: clampedY }, column);
+    return {
+      dayKey: column.getAttribute('data-day-column'),
+      dayIndex: Number(column.getAttribute('data-day-index')),
+      hour: slot.hour,
+      minute: slot.minute,
+    };
+  }
+  return null;
+};
+
+const scrollCalendarTowardPointer = (scroller, clientY) => {
+  if (!scroller) return;
+  const rect = scroller.getBoundingClientRect();
+  if (clientY < rect.top + 36) scroller.scrollTop -= 20;
+  else if (clientY > rect.bottom - 36) scroller.scrollTop += 20;
+};
+
 const emptyDragImage = () => {
   const canvas = document.createElement('canvas');
   canvas.width = 1;
@@ -151,6 +189,17 @@ export default function TrainingCalendar() {
   const previewRef = useRef(null);
   const previewPos = useRef({ x: 0, y: 0 });
   const dragPayloadRef = useRef(null);
+  const calendarRef = useRef(null);
+  const pointerDragRef = useRef(null);
+  const suppressClickRef = useRef(false);
+  const hoverSlotRef = useRef(null);
+  const dropHandledRef = useRef(false);
+  const dragSeqRef = useRef(0);
+  const daysRef = useRef([]);
+  const placeAtRef = useRef(async () => {});
+  const dropAtPointRef = useRef(() => {});
+  const endDragRef = useRef(() => {});
+  const updateHoverSlotRef = useRef(() => {});
 
   const hoverKey = hoverSlot ? `${hoverSlot.dayKey}-${hoverSlot.hour}-${hoverSlot.minute}` : '';
 
@@ -173,12 +222,31 @@ export default function TrainingCalendar() {
       // Keep the native ghost if the browser rejects a custom drag image.
     }
     previewPos.current = { x: event.clientX, y: event.clientY };
+    dropHandledRef.current = false;
     dragPayloadRef.current = item;
-    setDragItem(item);
-    setHoverSlot(null);
+    hoverSlotRef.current = null;
+    const seq = ++dragSeqRef.current;
+    requestAnimationFrame(() => {
+      if (dragSeqRef.current === seq) setDragItem(item);
+    });
+  };
+
+  const startPointerDrag = (event, item) => {
+    if (event.button !== 0) return;
+    dropHandledRef.current = false;
+    suppressClickRef.current = false;
+    pointerDragRef.current = {
+      item,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      target: event.currentTarget,
+      active: false,
+    };
   };
 
   const updateHoverSlot = (next) => {
+    hoverSlotRef.current = next || null;
     setHoverSlot((prev) => {
       if (!next) return null;
       if (prev && prev.dayKey === next.dayKey && prev.hour === next.hour && prev.minute === next.minute) return prev;
@@ -187,9 +255,38 @@ export default function TrainingCalendar() {
   };
 
   const endDrag = () => {
+    dragSeqRef.current += 1;
+    pointerDragRef.current = null;
     dragPayloadRef.current = null;
+    hoverSlotRef.current = null;
     setDragItem(null);
     setHoverSlot(null);
+  };
+
+  const resolveDropSlot = (clientX, clientY) => {
+    const found = slotFromClientPoint(clientX, clientY, calendarRef.current);
+    if (found) return found;
+    const hovered = hoverSlotRef.current;
+    if (!hovered) return null;
+    return {
+      dayKey: hovered.dayKey,
+      dayIndex: daysRef.current.findIndex((item) => item.toDateString() === hovered.dayKey),
+      hour: hovered.hour,
+      minute: hovered.minute,
+    };
+  };
+
+  const dropAtPoint = (clientX, clientY, payload) => {
+    if (dropHandledRef.current || !payload) return;
+    dropHandledRef.current = true;
+    const found = resolveDropSlot(clientX, clientY);
+    endDrag();
+    if (!found) return;
+    const day =
+      Number.isInteger(found.dayIndex) && found.dayIndex >= 0
+        ? daysRef.current[found.dayIndex]
+        : daysRef.current.find((entry) => entry.toDateString() === found.dayKey);
+    if (day) placeAtRef.current(day, found.hour, found.minute, payload);
   };
 
   const days = useMemo(() => Array.from({ length: DAY_COUNT }, (_, index) => addDays(weekStart, index)), [weekStart]);
@@ -226,7 +323,7 @@ export default function TrainingCalendar() {
     try {
       if (payload?.kind === 'session') {
         const session = sessions.find((item) => item.Session_ID === payload.id);
-        if (!session || session.Status === 'Completed' || session.Status === 'Cancelled') return;
+        if (!session || !isMovableSession(session)) return;
         const previousStart = parseSheetDate(session.Start_Time);
         const previousEnd = parseSheetDate(session.End_Time);
         const span = previousStart && previousEnd ? previousEnd.getTime() - previousStart.getTime() : duration * 60 * 1000;
@@ -270,15 +367,117 @@ export default function TrainingCalendar() {
     }
   };
 
+  daysRef.current = days;
+  placeAtRef.current = placeAt;
+  dropAtPointRef.current = dropAtPoint;
+  endDragRef.current = endDrag;
+  updateHoverSlotRef.current = updateHoverSlot;
+
+  useEffect(() => {
+    if (!dragItem) return undefined;
+    const previousUserSelect = document.body.style.userSelect;
+    const previousCursor = document.body.style.cursor;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'grabbing';
+    return () => {
+      document.body.style.userSelect = previousUserSelect;
+      document.body.style.cursor = previousCursor;
+    };
+  }, [dragItem]);
+
+  useEffect(() => {
+    const hoverFromPoint = (clientX, clientY) => {
+      const found = slotFromClientPoint(clientX, clientY, calendarRef.current);
+      if (!found) {
+        updateHoverSlotRef.current(null);
+        return;
+      }
+      const day =
+        Number.isInteger(found.dayIndex) && found.dayIndex >= 0
+          ? daysRef.current[found.dayIndex]
+          : daysRef.current.find((item) => item.toDateString() === found.dayKey);
+      updateHoverSlotRef.current({
+        day,
+        dayKey: found.dayKey,
+        hour: found.hour,
+        minute: found.minute,
+      });
+    };
+
+    const onMove = (event) => {
+      const drag = pointerDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+      if (!drag.active) {
+        if (distance < DRAG_THRESHOLD_PX) return;
+        drag.active = true;
+        suppressClickRef.current = true;
+        dragPayloadRef.current = drag.item;
+        previewPos.current = { x: event.clientX, y: event.clientY };
+        setDragItem(drag.item);
+      }
+      if (event.cancelable) event.preventDefault();
+      movePreview(event.clientX, event.clientY);
+      scrollCalendarTowardPointer(calendarRef.current, event.clientY);
+      hoverFromPoint(event.clientX, event.clientY);
+    };
+
+    const finish = (event) => {
+      const drag = pointerDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      const active = drag.active;
+      const item = drag.item;
+      pointerDragRef.current = null;
+      if (!active) {
+        endDragRef.current();
+        return;
+      }
+      const eatNextClick = (clickEvent) => {
+        clickEvent.preventDefault();
+        clickEvent.stopPropagation();
+        window.removeEventListener('click', eatNextClick, true);
+      };
+      window.addEventListener('click', eatNextClick, true);
+      dropAtPointRef.current(event.clientX, event.clientY, item);
+    };
+
+    const cancelPointerDrag = (event) => {
+      const drag = pointerDragRef.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      pointerDragRef.current = null;
+      endDragRef.current();
+    };
+
+    const onKeyDown = (event) => {
+      if (event.key !== 'Escape') return;
+      if (!pointerDragRef.current && !dragPayloadRef.current) return;
+      pointerDragRef.current = null;
+      endDragRef.current();
+    };
+
+    window.addEventListener('pointermove', onMove, { passive: false, capture: true });
+    window.addEventListener('pointerup', finish, true);
+    window.addEventListener('pointercancel', cancelPointerDrag, true);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('pointermove', onMove, { capture: true });
+      window.removeEventListener('pointerup', finish, true);
+      window.removeEventListener('pointercancel', cancelPointerDrag, true);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, []);
+
   const weekLabel = `${formatDdMmYyyy(days[0])} – ${formatDdMmYyyy(days[6])}`;
-  const dragTimeSlot = hoverSlot || (dragItem?.hour != null ? { day: dragItem.day, hour: dragItem.hour, minute: dragItem.minute } : null);
-  const dragTimeLabel = dragTimeSlot
-    ? `${dragTimeSlot.day ? `${dragTimeSlot.day.toLocaleDateString(undefined, { weekday: 'short' })} ${dragTimeSlot.day.getDate()} · ` : ''}${formatClockRange(
-        dragTimeSlot.hour,
-        dragTimeSlot.minute,
-        dragItem.minutes
-      )}`
-    : 'Drop on a time slot';
+  const dragTimeSlot =
+    dragItem && (hoverSlot || (dragItem.hour != null ? { day: dragItem.day, hour: dragItem.hour, minute: dragItem.minute } : null));
+  const dragTimeLabel =
+    dragItem && dragTimeSlot
+      ? `${dragTimeSlot.day ? `${dragTimeSlot.day.toLocaleDateString(undefined, { weekday: 'short' })} ${dragTimeSlot.day.getDate()} · ` : ''}${formatClockRange(
+          dragTimeSlot.hour,
+          dragTimeSlot.minute,
+          dragItem.minutes || 60
+        )}`
+      : 'Drop on a time slot';
 
   return (
     <section className="flex flex-col gap-4">
@@ -419,8 +618,8 @@ export default function TrainingCalendar() {
                   }
                   sessionCount={sessions.filter((session) => session.Client_ID === client.Client_ID).length}
                   onSelect={() => setSelectedId((id) => (id === client.Client_ID ? '' : client.Client_ID))}
-                  onBeginDrag={(event) =>
-                    beginDrag(event, {
+                  onPointerDown={(event) =>
+                    startPointerDrag(event, {
                       kind: 'client',
                       id: client.Client_ID,
                       name: client.Client_Name,
@@ -428,8 +627,6 @@ export default function TrainingCalendar() {
                       minutes: duration,
                     })
                   }
-                  onMoveDrag={movePreview}
-                  onEndDrag={endDrag}
                 />
                 {privileges.canSetLeadEmail &&
                 (selectedId === client.Client_ID || !isValidLeadEmail(clientLeadEmail(client, leads))) ? (
@@ -442,7 +639,7 @@ export default function TrainingCalendar() {
           </div>
         </aside>
 
-        <div className="min-h-0 overflow-auto rounded-lg border border-slate-300 bg-white">
+        <div ref={calendarRef} className="min-h-0 overflow-auto rounded-lg border border-slate-300 bg-white">
           <div className="grid min-w-[900px]" style={{ gridTemplateColumns: `56px repeat(${DAY_COUNT}, minmax(0, 1fr))` }}>
             <div className="sticky top-0 z-10 border-b border-slate-300 bg-slate-50" />
             {days.map((day) => (
@@ -469,10 +666,12 @@ export default function TrainingCalendar() {
               ))}
             </div>
 
-            {days.map((day) => (
+            {days.map((day, index) => (
               <DayColumn
                 key={day.toISOString()}
                 day={day}
+                dayKey={day.toDateString()}
+                dayIndex={index}
                 isToday={sameDate(day, today)}
                 hoverKey={hoverKey}
                 selected={Boolean(selected)}
@@ -493,7 +692,7 @@ export default function TrainingCalendar() {
                   const start = parseSheetDate(session.Start_Time);
                   const end = parseSheetDate(session.End_Time);
                   const span = start && end ? Math.max(SLOT_MINUTES, Math.round((end.getTime() - start.getTime()) / 60000)) : duration;
-                  beginDrag(event, {
+                  startPointerDrag(event, {
                     kind: 'session',
                     id: session.Session_ID,
                     name: client?.Client_Name || session.Session_Title,
@@ -504,8 +703,6 @@ export default function TrainingCalendar() {
                     day: start,
                   });
                 }}
-                onMoveDrag={movePreview}
-                onEndDrag={endDrag}
               />
             ))}
           </div>
@@ -535,12 +732,11 @@ export default function TrainingCalendar() {
   );
 }
 
-function ClientChip({ client, selected, sessionCount, trainerLabel, onSelect, onBeginDrag, onMoveDrag, onEndDrag }) {
+function ClientChip({ client, selected, sessionCount, trainerLabel, onSelect, onPointerDown }) {
   return (
     <div
       role="button"
       tabIndex={0}
-      draggable
       onClick={onSelect}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -548,14 +744,8 @@ function ClientChip({ client, selected, sessionCount, trainerLabel, onSelect, on
           onSelect();
         }
       }}
-      onDragStart={(event) => {
-        event.stopPropagation();
-        writeDragPayload(event, { kind: 'client', id: client.Client_ID }, 'copy');
-        onBeginDrag(event);
-      }}
-      onDrag={(event) => onMoveDrag(event.clientX, event.clientY)}
-      onDragEnd={onEndDrag}
-      className={`flex w-full cursor-grab items-start gap-2 rounded-lg border px-2 py-2 text-left active:cursor-grabbing ${
+      onPointerDown={onPointerDown}
+      className={`flex w-full cursor-grab touch-none select-none items-start gap-2 rounded-lg border px-2 py-2 text-left active:cursor-grabbing ${
         selected ? 'border-sky-500 bg-sky-50' : 'border-slate-200 bg-slate-50 hover:border-slate-300'
       }`}
     >
@@ -578,14 +768,10 @@ function ClientChip({ client, selected, sessionCount, trainerLabel, onSelect, on
   );
 }
 
-function slotFromPointer(event, column) {
-  const rect = column.getBoundingClientRect();
-  const index = Math.max(0, Math.min(slotCount - 1, Math.floor((event.clientY - rect.top) / ROW_HEIGHT)));
-  return slots[index];
-}
-
 function DayColumn({
   day,
+  dayKey,
+  dayIndex,
   isToday,
   hoverKey,
   selected,
@@ -600,8 +786,6 @@ function DayColumn({
   onPlace,
   onSelectSession,
   onBeginSessionDrag,
-  onMoveDrag,
-  onEndDrag,
 }) {
   const dropOnColumn = (event) => {
     event.preventDefault();
@@ -617,6 +801,8 @@ function DayColumn({
 
   return (
     <div
+      data-day-column={dayKey || day.toDateString()}
+      data-day-index={dayIndex}
       className={`relative border-l border-slate-200 ${isToday ? 'bg-sky-50/40' : ''}`}
       onDragOver={(event) => {
         event.preventDefault();
@@ -652,41 +838,31 @@ function DayColumn({
         const client = clients.find((item) => item.Client_ID === session.Client_ID);
         const cancelled = isCancelledSession(session);
         const reason = sessionCancelReason(session);
-        const movable = session.Status !== 'Completed' && !cancelled;
+        const movable = isMovableSession(session);
         return (
-          <button
+          <div
             key={session.Session_ID}
-            type="button"
-            draggable={movable}
+            role="button"
+            tabIndex={0}
             onClick={(event) => {
               event.stopPropagation();
               onSelectSession(session);
             }}
-            onDragStart={(event) => {
-              if (!movable) {
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
-                return;
+                onSelectSession(session);
               }
+            }}
+            onPointerDown={(event) => {
+              if (!movable) return;
               event.stopPropagation();
-              writeDragPayload(event, { kind: 'session', id: session.Session_ID }, 'move');
               onBeginSessionDrag(event, session, client);
             }}
-            onDrag={(event) => onMoveDrag(event.clientX, event.clientY)}
-            onDragEnd={onEndDrag}
-            onDragOver={(event) => {
-              event.preventDefault();
-              event.dataTransfer.dropEffect = dragItem?.kind === 'session' ? 'move' : 'copy';
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              const column = event.currentTarget.parentElement;
-              const slot = slotFromPointer(event, column);
-              onHover(null);
-              onPlace(slot.hour, slot.minute, payloadFromDrop(event, dragPayloadRef?.current || dragItem));
-            }}
-            className={`absolute right-1 left-1 z-10 overflow-hidden rounded px-1.5 py-0.5 text-left text-[11px] shadow-sm ${sessionColor(session.Status)} ${
-              dragItem?.id === session.Session_ID ? 'opacity-40' : ''
+            className={`absolute right-1 left-1 z-10 overflow-hidden rounded px-1.5 py-0.5 text-left text-[11px] shadow-sm ${
+              movable ? 'cursor-grab touch-none select-none active:cursor-grabbing' : 'cursor-pointer'
+            } ${sessionColor(session.Status)} ${
+              dragItem?.id === session.Session_ID ? 'pointer-events-none ring-2 ring-sky-400 ring-offset-1' : ''
             }`}
             style={{ top: top + 2, height }}
             title={`${client?.Client_Name || session.Session_Title} · ${sessionWorkType(session)} · ${
@@ -717,7 +893,7 @@ function DayColumn({
                       : ''
                   }`}
             </span>
-          </button>
+          </div>
         );
       })}
 
