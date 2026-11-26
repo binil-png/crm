@@ -518,6 +518,9 @@ export const STORAGE_KEYS = {
   DEMO_MODE: 'crm_demo_mode',
   MOCK_DB: 'crm_mock_db_v8',
   DIRECTORY: 'crm_directory_user',
+  NOTIFICATIONS: 'crm_notifications',
+  NOTIFICATION_FIRED: 'crm_notification_fired',
+  NOTIFICATION_SEEN_HANDOFFS: 'crm_notification_seen_handoffs',
 };
 
 export const createId = (prefix) =>

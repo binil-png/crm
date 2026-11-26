@@ -1,8 +1,8 @@
 import { Bell, BellOff, BellRing } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
+  canEnableAlerts,
   getPushPermission,
-  isPushConfigured,
   requestPushPermission,
 } from '../../services/pushNotifications';
 
@@ -11,12 +11,12 @@ export default function PushPrompt() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!isPushConfigured()) return undefined;
+    if (!canEnableAlerts()) return undefined;
     getPushPermission().then(setPermission).catch(() => {});
     return undefined;
   }, []);
 
-  if (!isPushConfigured() || permission === 'unsupported') return null;
+  if (!canEnableAlerts() || permission === 'unsupported') return null;
 
   const enable = async () => {
     setBusy(true);
@@ -54,7 +54,7 @@ export default function PushPrompt() {
       onClick={enable}
       disabled={busy}
       className="inline-flex items-center gap-1 rounded border border-sky-200 bg-sky-50 px-2 py-1 text-xs text-sky-800 disabled:opacity-60"
-      title="Get call and session reminders even after you close the CRM"
+      title="Get call reminders and training handoff alerts"
     >
       <Bell size={14} />
       {busy ? 'Waiting…' : 'Enable alerts'}

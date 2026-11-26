@@ -34,9 +34,25 @@ import TrainingDropBox from './TrainingDropBox';
 import ScheduleDateTimeFields from './ScheduleDateTimeFields';
 import Modal from '../shared/Modal';
 import Drawer from '../shared/Drawer';
+import PhoneActions from './PhoneActions';
 
 const PAGE_SIZE = 50;
-const SALES_TABLE_HEADERS = ['Comments', 'Sheet', ...LEAD_HEADERS.filter((header) => header !== 'Comments')];
+const SALES_TABLE_HEADERS = [
+  'Comments',
+  'Customer Name',
+  'Contact Number',
+  'Scheduled Date',
+  'Status',
+  'Sheet',
+  ...LEAD_HEADERS.filter(
+    (header) =>
+      header !== 'Comments' &&
+      header !== 'Customer Name' &&
+      header !== 'Contact Number' &&
+      header !== 'Scheduled Date' &&
+      header !== 'Status'
+  ),
+];
 
 export default function LeadKanban() {
   const { user, privileges, directory } = useAuth();
@@ -349,6 +365,8 @@ export default function LeadKanban() {
                                 readOnly={!privileges.canEditLead}
                                 onChange={changeStatus}
                               />
+                            ) : header === 'Contact Number' ? (
+                              <PhoneActions value={lead['Contact Number']} compact />
                             ) : header === 'Date' ? (
                               formatDate(lead.Date)
                             ) : (

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
+import PhoneActions from './PhoneActions';
 import { useAuth } from '../../context/AuthContext';
 import { useCrmStore } from '../../store/crmStore';
 import { createCalendarEvent } from '../../services/calendarService';
@@ -277,6 +278,11 @@ export default function LeadModal({ lead, onClose, onCloseDeal, mode = 'full' })
               value={form[key] || ''}
               onChange={(e) => setField(key, e.target.value)}
             />
+            {key === 'Contact Number' && form[key] ? (
+              <div className="mt-1">
+                <PhoneActions value={form[key]} showNumber={false} />
+              </div>
+            ) : null}
           </label>
         ))}
 

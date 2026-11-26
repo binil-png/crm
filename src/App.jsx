@@ -15,6 +15,7 @@ import UsersPanel from './components/admin/UsersPanel';
 import SheetsConfigPanel from './components/admin/SheetsConfigPanel';
 import SalesTrainingProgress from './components/sales/SalesTrainingProgress';
 import TabBox from './components/shared/TabBox';
+import NotificationWatcher from './components/shared/NotificationWatcher';
 
 export default function App() {
   const { isAuthenticated, booting, role, privileges, error } = useAuth();
@@ -72,6 +73,7 @@ export default function App() {
   return (
     <div className="min-h-screen">
       <Navbar />
+      <NotificationWatcher />
       <main className="w-full min-w-0 max-w-full overflow-x-hidden px-4 py-5 sm:px-6">
         {error || dataError ? (
           <p className="mb-4 rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error || dataError}</p>

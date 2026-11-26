@@ -5,6 +5,7 @@ import { useCrmStore } from '../../store/crmStore';
 import { ROLES, ROLE_LABELS } from '../../utils/constants';
 import { isDemoMode } from '../../services/googleApi';
 import useNow from '../../hooks/useNow';
+import NotificationBell from './NotificationBell';
 import PushPrompt from './PushPrompt';
 
 const formatSynced = (at, now) => {
@@ -46,6 +47,7 @@ export default function Navbar() {
             <p className="text-xs text-slate-500">{isDemoMode() ? 'Demo' : 'Live'}</p>
           </div>
           <div className="flex shrink-0 items-center gap-4">
+            <NotificationBell />
             <PushPrompt />
             <p className="hidden text-xs text-slate-500 sm:block">
               {syncing && !loading ? 'Updating…' : formatSynced(lastSyncedAt, now)}

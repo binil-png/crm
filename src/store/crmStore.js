@@ -3,6 +3,7 @@ import * as sheets from '../services/sheetsService';
 import { createCalendarEvent, patchCalendarEvent } from '../services/calendarService';
 import { getSpreadsheetStamp } from '../services/driveService';
 import { cancelTimedPush, currentUserEmail, scheduleTimedPush } from '../services/pushNotifications';
+import { notifyCallScheduled, notifyPassedToTraining } from '../services/notifications';
 import {
   appendStageComment,
   createId,
@@ -10,6 +11,7 @@ import {
   calendarIdForEmail,
   formatDdMmYyyyHm,
   leadKey,
+  listTrainingTeam,
   nowIso,
   findClientForLead,
   findLeadForClient,
@@ -143,10 +145,12 @@ export const useCrmStore = create((set, get) => ({
       body: note || `Sales call at ${scheduled}`,
       emails: [currentUserEmail()].filter(Boolean),
     }).catch((error) => console.warn(error));
+    notifyCallScheduled(lead, startDate).catch((error) => console.warn(error));
     return get().updateLead(lead, { 'Scheduled Date': scheduled, Comments: comments });
   },
 
   completeCall: async (lead, { status, note } = {}) => {
+    cancelTimedPush(`call-${lead._sheet}-${lead['Sl No']}`).catch(() => {});
     const comments = appendStageComment(
       lead.Comments,
       note || `Call completed on ${formatDdMmYyyyHm(new Date())}`
@@ -193,6 +197,12 @@ export const useCrmStore = create((set, get) => ({
       clients: [client, ...get().clients],
       leads: replaceLead(get().leads, nextLead),
     });
+    const trainingEmails = listTrainingTeam({
+      users: get().users,
+      clients: get().clients,
+      sessions: get().sessions,
+    }).map((member) => member.email);
+    notifyPassedToTraining({ client, lead: nextLead, emails: trainingEmails }).catch((error) => console.warn(error));
     return client;
   },
 

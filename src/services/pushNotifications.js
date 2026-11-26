@@ -82,23 +82,35 @@ export const initPushNotifications = async (user) => {
   return true;
 };
 
+export const browserNotifySupported = () => typeof Notification !== 'undefined';
+
+export const canEnableAlerts = () => isPushConfigured() || browserNotifySupported();
+
 export const getPushPermission = async () => {
-  if (!isPushConfigured() || typeof Notification === 'undefined') return 'unsupported';
-  try {
-    await initPushNotifications();
-  } catch {
-    return Notification.permission;
+  if (!canEnableAlerts()) return 'unsupported';
+  if (isPushConfigured()) {
+    try {
+      await initPushNotifications();
+      const OneSignal = await initPromise;
+      return OneSignal?.Notifications?.permissionNative || (browserNotifySupported() ? Notification.permission : 'default');
+    } catch {
+      return browserNotifySupported() ? Notification.permission : 'denied';
+    }
   }
-  const OneSignal = await initPromise;
-  return OneSignal?.Notifications?.permissionNative || Notification.permission;
+  return Notification.permission;
 };
 
 export const requestPushPermission = async () => {
-  await initPushNotifications();
-  const OneSignal = await initPromise;
-  if (!OneSignal) return 'denied';
-  await OneSignal.Notifications.requestPermission();
-  return OneSignal.Notifications.permissionNative || Notification.permission;
+  if (isPushConfigured()) {
+    await initPushNotifications();
+    const OneSignal = await initPromise;
+    if (OneSignal?.Notifications?.requestPermission) {
+      await OneSignal.Notifications.requestPermission();
+      return OneSignal.Notifications.permissionNative || Notification.permission;
+    }
+  }
+  if (!browserNotifySupported()) return 'unsupported';
+  return Notification.requestPermission();
 };
 
 const callPushApi = async (payload) => {
@@ -115,6 +127,25 @@ const callPushApi = async (payload) => {
     throw new Error(result.error || 'Could not reach the push service.');
   }
   return result;
+};
+
+export const sendImmediatePush = async ({ id, title, body, emails, url = '/' }) => {
+  if (!isPushConfigured() || !title || !body) return { skipped: true };
+  const recipients = [...new Set((emails || [currentUserEmail()]).map((email) => String(email || '').trim().toLowerCase()).filter(Boolean))];
+  if (!recipients.length) return { skipped: true };
+  try {
+    return await callPushApi({
+      action: 'send',
+      id: id || `crm-${Date.now()}`,
+      emails: recipients,
+      title,
+      body,
+      url,
+    });
+  } catch (error) {
+    console.warn(error);
+    return { skipped: true };
+  }
 };
 
 export const cancelTimedPush = async (id) => {
