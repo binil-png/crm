@@ -14,6 +14,7 @@ import WorkLogForm from './components/worklog/WorkLogForm';
 import UsersPanel from './components/admin/UsersPanel';
 import SheetsConfigPanel from './components/admin/SheetsConfigPanel';
 import SalesTrainingProgress from './components/sales/SalesTrainingProgress';
+import TabBox from './components/shared/TabBox';
 
 export default function App() {
   const { isAuthenticated, booting, role, privileges, error } = useAuth();
@@ -76,40 +77,28 @@ export default function App() {
           <p className="mb-4 rounded bg-rose-50 px-3 py-2 text-sm text-rose-700">{error || dataError}</p>
         ) : null}
 
-        <div className="mb-5 flex flex-wrap gap-2">
-          {tabs.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setTab(item.id)}
-              className={`rounded px-3 py-1.5 text-sm ${tab === item.id ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200'}`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-
         {role === ROLES.CONFIG ? (
           <h1 className="mb-4 text-lg font-semibold">Configuration</h1>
         ) : null}
 
-        {loading ? <p className="mb-4 text-sm text-slate-500">Syncing…</p> : null}
-
-        {role === ROLES.SALES && tab === 'main' ? <LeadKanban /> : null}
-        {role === ROLES.SALES && tab === 'training-progress' ? <SalesTrainingProgress /> : null}
-        {role === ROLES.TRAINING && tab === 'main' ? <TrainingCalendar /> : null}
-        {role === ROLES.TRAINING && tab === 'clients' ? <ClientList /> : null}
-        {role === ROLES.TRAINING && tab === 'sessions' ? (
-          <section>
-            <h2 className="mb-4 text-lg font-semibold">Sessions</h2>
-            <SessionList />
-          </section>
-        ) : null}
-        {role === ROLES.TRAINING && tab === 'worklog' ? <WorkLogForm /> : null}
-        {tab === 'messages' ? <CommunicationPanel /> : null}
-        {role === ROLES.CONFIG && privileges.canViewUsers && tab === 'users' ? <UsersPanel /> : null}
-        {role === ROLES.CONFIG && privileges.canManageSheets && tab === 'sheets' ? <SheetsConfigPanel /> : null}
-        {role === ROLES.CONFIG && privileges.admin && tab === 'worklog' ? <WorkLogForm /> : null}
+        <TabBox plain tabs={tabs} value={tab} onChange={setTab}>
+          {loading ? <p className="mb-4 text-sm text-slate-500">Syncing…</p> : null}
+          {role === ROLES.SALES && tab === 'main' ? <LeadKanban /> : null}
+          {role === ROLES.SALES && tab === 'training-progress' ? <SalesTrainingProgress /> : null}
+          {role === ROLES.TRAINING && tab === 'main' ? <TrainingCalendar /> : null}
+          {role === ROLES.TRAINING && tab === 'clients' ? <ClientList /> : null}
+          {role === ROLES.TRAINING && tab === 'sessions' ? (
+            <section>
+              <h2 className="mb-4 text-lg font-semibold">Sessions</h2>
+              <SessionList />
+            </section>
+          ) : null}
+          {role === ROLES.TRAINING && tab === 'worklog' ? <WorkLogForm /> : null}
+          {tab === 'messages' ? <CommunicationPanel /> : null}
+          {role === ROLES.CONFIG && privileges.canViewUsers && tab === 'users' ? <UsersPanel /> : null}
+          {role === ROLES.CONFIG && privileges.canManageSheets && tab === 'sheets' ? <SheetsConfigPanel /> : null}
+          {role === ROLES.CONFIG && privileges.admin && tab === 'worklog' ? <WorkLogForm /> : null}
+        </TabBox>
       </main>
     </div>
   );
