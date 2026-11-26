@@ -1,5 +1,5 @@
 import { getTimeZone, normalizeCalendarId } from '../utils/constants';
-import { ensureAccessToken, getCalendarId, googleFetch, isDemoMode } from './googleApi';
+import { getCalendarId, googleFetch, isDemoMode } from './googleApi';
 import * as mock from './mockBackend';
 
 const splitEmails = (value) =>
@@ -46,7 +46,6 @@ export const createCalendarEvent = async ({ title, start, end, attendees, attend
     return mock.mockCreateCalendarEvent({ title, start, end, attendees });
   }
 
-  await ensureAccessToken();
   const resource = buildEventResource({ title, start, end, attendees, attendeeNames, description });
   const target = resolveCalendar(calendarId);
   const encoded = encodeURIComponent(target);
@@ -61,7 +60,6 @@ export const patchCalendarEvent = async (eventId, { start, end, title, attendees
   if (!eventId) throw new Error('Calendar event id is missing.');
   if (isDemoMode()) return mock.mockPatchCalendarEvent(eventId, { start, end });
 
-  await ensureAccessToken();
   const resource = {
     ...(title ? { summary: title } : {}),
     ...(start && end ? toEventTimes(start, end) : {}),

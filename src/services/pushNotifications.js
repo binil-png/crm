@@ -8,7 +8,14 @@ const configuredAppId = () => {
 
 export const isPushConfigured = () => Boolean(configuredAppId());
 
-const pushApiUrl = () => String(import.meta.env.VITE_PUSH_API_URL || '/api/push').trim() || '/api/push';
+const apiBase = () => String(import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
+
+const pushApiUrl = () => {
+  const explicit = String(import.meta.env.VITE_PUSH_API_URL || '').trim();
+  if (explicit && !explicit.startsWith('your-')) return explicit;
+  const base = apiBase();
+  return base ? `${base}/api/push` : '/api/push';
+};
 
 const readStoredIds = () => {
   try {

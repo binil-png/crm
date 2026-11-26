@@ -132,7 +132,7 @@ const describeSheetWriteError = (error, spreadsheetId, label, email) => {
   return `${label}: ${sheetsErrorMessage(error)}`;
 };
 
-const useGapiSheets = () => isGapiReady() && !isAppSheetsEnabled();
+const useGapiSheets = () => false;
 
 const gapiCall = async (fn) => {
   try {
@@ -444,7 +444,7 @@ const applyConfigValues = (values, host) => {
 };
 
 const serviceAccountLoginHelp = (label) =>
-  `This hosted CRM must load the ${label} sheet through /api/config-sheet and /api/sheets (service account ${getAppSheetsStatus().shareWith || 'crm-271@pappyjoe-crm.iam.gserviceaccount.com'}). Other Gmail accounts do not need Editor access. Deploy those APIs with GOOGLE_SERVICE_ACCOUNT_FILE, and share the sheets with that service account as Editor.`;
+  `The ${label} sheet is opened by crm-api with the service account. Start crm-api (or set VITE_API_BASE_URL to the Render API URL), and share that sheet with ${getAppSheetsStatus().shareWith || 'crm-271@pappyjoe-crm.iam.gserviceaccount.com'} as Editor.`;
 
 export const loadWorkbookConfig = async () => {
   try {

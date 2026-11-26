@@ -136,7 +136,26 @@ export const disableLocalDemo = () => {
   localStorage.removeItem(STORAGE_KEYS.DEMO_MODE);
 };
 
-const sheetsProxyUrl = () => envValue('VITE_SHEETS_API_URL', '/api/sheets') || '/api/sheets';
+const apiBaseUrl = () => envValue('VITE_API_BASE_URL').replace(/\/$/, '');
+
+const sheetsProxyUrl = () => {
+  const explicit = envValue('VITE_SHEETS_API_URL');
+  if (explicit) return explicit;
+  const base = apiBaseUrl();
+  return base ? `${base}/api/sheets` : '/api/sheets';
+};
+
+const configSheetUrl = () => {
+  const explicit = envValue('VITE_CONFIG_SHEET_API_URL');
+  if (explicit) return explicit;
+  const sheets = envValue('VITE_SHEETS_API_URL');
+  if (sheets) {
+    if (sheets.endsWith('/api/sheets')) return sheets.replace(/\/api\/sheets$/, '/api/config-sheet');
+    return `${sheets.replace(/\/$/, '')}/api/config-sheet`;
+  }
+  const base = apiBaseUrl();
+  return base ? `${base}/api/config-sheet` : '/api/config-sheet';
+};
 
 let appSheetsStatus = { enabled: false, shareWith: '' };
 
@@ -147,6 +166,11 @@ export const isAppSheetsEnabled = () => Boolean(appSheetsStatus.enabled);
 export const refreshAppSheetsStatus = async () => {
   try {
     const response = await fetch(sheetsProxyUrl());
+    const contentType = String(response.headers.get('content-type') || '');
+    if (!response.ok || !contentType.includes('application/json')) {
+      appSheetsStatus = { enabled: false, shareWith: '' };
+      return appSheetsStatus;
+    }
     const data = await response.json();
     appSheetsStatus = {
       enabled: Boolean(data?.enabled),
@@ -161,6 +185,10 @@ export const refreshAppSheetsStatus = async () => {
 const isAppSheetsUrl = (url) =>
   /^https:\/\/sheets\.googleapis\.com\/v4\/spreadsheets\//.test(url) ||
   /^https:\/\/www\.googleapis\.com\/drive\/v3\/files\//.test(url);
+
+const isCalendarApiUrl = (url) => String(url || '').includes('googleapis.com/calendar/');
+
+const isServerGoogleUrl = (url) => isAppSheetsUrl(url) || isCalendarApiUrl(url);
 
 export const getSpreadsheetId = () => getConfig().spreadsheetId;
 
@@ -203,28 +231,8 @@ const loadGapi = () =>
 export const initGapi = async () => {
   if (isDemoMode()) return true;
   await refreshAppSheetsStatus();
-  if (isAppSheetsEnabled()) {
-    gapiReady = false;
-    return true;
-  }
-  if (gapiReady) return true;
-  const { apiKey } = getConfig();
-  try {
-    const api = await loadGapi();
-    await api.client.init({
-      ...(apiKey ? { apiKey } : {}),
-      discoveryDocs: DISCOVERY_DOCS,
-    });
-    if (accessToken) {
-      api.client.setToken({ access_token: accessToken });
-    }
-    gapiReady = true;
-    return true;
-  } catch (error) {
-    console.warn('gapi init failed, REST fallback will be used.', error);
-    gapiReady = false;
-    return false;
-  }
+  gapiReady = false;
+  return true;
 };
 
 export const isGapiReady = () => gapiReady && Boolean(window.gapi?.client);
@@ -252,8 +260,6 @@ const realAccessToken = () => {
 };
 
 const TOKEN_REFRESH_BUFFER_MS = 60 * 1000;
-
-const isCalendarApiUrl = (url) => String(url || '').includes('googleapis.com/calendar/');
 
 export const isAccessTokenExpired = () => {
   if (!realAccessToken()) return true;
@@ -316,19 +322,30 @@ const readConfigSheetResponse = async (response) => {
   } catch {
     data = {};
   }
-  if (!response.ok || !contentType.includes('application/json')) {
+  const looksLikeHtml = contentType.includes('text/html');
+  const looksLikeConfig = Boolean(data && (Array.isArray(data.values) || data.spreadsheetId));
+  if (!response.ok || looksLikeHtml || !looksLikeConfig) {
     throw new Error(data.error || 'Could not load the configuration spreadsheet.');
   }
   return data;
 };
 
 export const fetchPublicWorkbookConfig = async () => {
-  const response = await fetch('/api/config-sheet');
-  return readConfigSheetResponse(response);
+  const urls = [configSheetUrl(), '/workbook-config.json'];
+  let lastError = new Error('Could not load the configuration spreadsheet.');
+  for (const url of urls) {
+    try {
+      const response = await fetch(url);
+      return await readConfigSheetResponse(response);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
 };
 
 export const savePublicWorkbookConfig = async (values) => {
-  const response = await fetch('/api/config-sheet', {
+  const response = await fetch(configSheetUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ values }),
@@ -336,40 +353,56 @@ export const savePublicWorkbookConfig = async (values) => {
   return readConfigSheetResponse(response);
 };
 
+const isProxyJsonResponse = (response) =>
+  String(response.headers.get('content-type') || '').includes('application/json');
+
+const proxySheetsFetch = async (url, options, token) => {
+  const response = await fetch(sheetsProxyUrl(), {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      url,
+      method: options.method || 'GET',
+      body: options.body ? JSON.parse(options.body) : undefined,
+    }),
+  });
+  if (!isProxyJsonResponse(response)) {
+    throw new Error(
+      'Sheets and Calendar are opened by crm-api with the service account. Set VITE_API_BASE_URL to the Render API URL, and share every CRM spreadsheet and training calendar with crm-271@pappyjoe-crm.iam.gserviceaccount.com as Editor.'
+    );
+  }
+  return response;
+};
+
 export const googleFetch = async (url, options = {}, retried = false) => {
   const token = realAccessToken();
   const configUrl = isConfigSpreadsheetUrl(url);
-  const useAppSheets = isAppSheetsEnabled() && isAppSheetsUrl(url) && Boolean(token || configUrl);
-  if (!useAppSheets && !token) {
-    throw new Error(
-      configUrl
-        ? 'LocalStorage mode cannot open the configuration spreadsheet. Add the JSON key for crm-271@pappyjoe-crm.iam.gserviceaccount.com as GOOGLE_SERVICE_ACCOUNT_FILE, and share the configuration sheet with that email as Editor.'
-        : 'Not signed in.'
-    );
+  if (isServerGoogleUrl(url)) {
+    if (!token && !configUrl) throw new Error('Not signed in.');
+    const response = await proxySheetsFetch(url, options, token);
+    if (!response.ok) throw new Error(await parseError(response));
+    appSheetsStatus = {
+      ...appSheetsStatus,
+      enabled: true,
+      shareWith: appSheetsStatus.shareWith || 'crm-271@pappyjoe-crm.iam.gserviceaccount.com',
+    };
+    if (response.status === 204) return null;
+    return response.json();
   }
-  const response = useAppSheets
-    ? await fetch(sheetsProxyUrl(), {
-        method: 'POST',
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          url,
-          method: options.method || 'GET',
-          body: options.body ? JSON.parse(options.body) : undefined,
-        }),
-      })
-    : await fetch(url, {
-        ...options,
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          'Content-Type': 'application/json',
-          ...(options.headers || {}),
-        },
-      });
+  if (!token) throw new Error('Not signed in.');
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
   if (!response.ok) {
-    if (!retried && response.status === 401 && isCalendarApiUrl(url)) {
+    if (!retried && response.status === 401) {
       await ensureAccessToken({ force: true });
       return googleFetch(url, options, true);
     }

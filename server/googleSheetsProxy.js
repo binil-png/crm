@@ -195,19 +195,35 @@ const accountFingerprint = (env) =>
     env.GOOGLE_SERVICE_ACCOUNT_S3_KEY,
     env.GOOGLE_SERVICE_ACCOUNT_S3_URL,
     env.GOOGLE_SERVICE_ACCOUNT_JSON,
+    env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64,
     env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
   ].join('|');
+
+const serviceAccountFileCandidates = (env = process.env) => {
+  const files = [];
+  const fromEnv = String(env.GOOGLE_SERVICE_ACCOUNT_FILE || '').trim();
+  if (fromEnv) files.push(fromEnv.startsWith('/') ? fromEnv : resolve(process.cwd(), fromEnv));
+  files.push('/etc/secrets/credentials.json');
+  files.push('/etc/secrets/google-service-account.json');
+  files.push(resolve(process.cwd(), 'credentials.json'));
+  files.push(resolve(process.cwd(), 'secrets/pappyjoe-crm-c1ce8651f5b1.json'));
+  return [...new Set(files)];
+};
 
 const loadServiceAccount = async (env = process.env) => {
   const fingerprint = accountFingerprint(env);
   if (accountCache.fingerprint === fingerprint && accountCache.account) return accountCache.account;
 
-  const file = String(env.GOOGLE_SERVICE_ACCOUNT_FILE || '').trim();
-  if (file) {
-    const path = resolve(process.cwd(), file);
-    if (!existsSync(path)) {
-      throw new Error(`Service account file was not found: ${path}`);
-    }
+  const fromBase64 = String(env.GOOGLE_SERVICE_ACCOUNT_JSON_BASE64 || '').trim();
+  if (fromBase64) {
+    const decoded = Buffer.from(fromBase64, 'base64').toString('utf8');
+    const account = accountFromJson(parseJson(decoded), 'GOOGLE_SERVICE_ACCOUNT_JSON_BASE64');
+    accountCache = { fingerprint, account };
+    return account;
+  }
+
+  for (const path of serviceAccountFileCandidates(env)) {
+    if (!existsSync(path)) continue;
     const account = accountFromJson(parseJson(readFileSync(path, 'utf8')), path);
     accountCache = { fingerprint, account };
     return account;

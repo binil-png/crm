@@ -1,13 +1,10 @@
 import {
-  getAccessToken,
   getConfigSpreadsheetId,
   getEmployeesSpreadsheetId,
   getSpreadsheetId,
   getTrainingSpreadsheetId,
   googleFetch,
-  isAppSheetsEnabled,
   isDemoMode,
-  isGapiReady,
 } from './googleApi';
 
 const driveFileUrl = (fileId) =>
@@ -17,16 +14,6 @@ const stampFromPayload = (data) => `${data?.modifiedTime || ''}:${data?.version 
 
 const stampForFile = async (fileId) => {
   if (!fileId) return '';
-  if (isGapiReady() && !isAppSheetsEnabled() && window.gapi?.client?.drive?.files) {
-    const response = await window.gapi.client.drive.files.get({
-      fileId,
-      fields: 'modifiedTime,version',
-      supportsAllDrives: true,
-    });
-    return stampFromPayload(response.result);
-  }
-  const token = getAccessToken();
-  if (!token) return '';
   return stampFromPayload(await googleFetch(driveFileUrl(fileId)));
 };
 

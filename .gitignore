@@ -14,6 +14,7 @@ dist-ssr
 .env
 *-service-account.json
 secrets/
+public/workbook-config.json
 
 # Editor directories and files
 .vscode/*

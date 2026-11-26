@@ -27,8 +27,20 @@ phases:
       - echo "Starting the post-build phase..."
       - cd dist
       - ls -ltrh
-      - aws s3 sync . s3://${target_bucket} --exclude "*.html" --cache-control "max-age=31536000, public"
+      - aws s3 sync . s3://${target_bucket} --exclude "*.html" --exclude "workbook-config.json" --cache-control "max-age=31536000, public"
       - aws s3 cp index.html s3://${target_bucket}/index.html --cache-control "no-cache, no-store, must-revalidate"
+      - |
+        if [ -f workbook-config.json ]; then
+          aws s3 cp workbook-config.json s3://${target_bucket}/workbook-config.json --content-type application/json --cache-control "no-cache, no-store, must-revalidate"
+        fi
+      - |
+        if [ -n "${lambda_function_name}" ]; then
+          cd ..
+          zip -r sheets-api.zip server api/lambda.js
+          if [ -d secrets ]; then zip -r sheets-api.zip secrets; fi
+          aws lambda update-function-code --function-name "${lambda_function_name}" --zip-file fileb://sheets-api.zip
+          cd dist
+        fi
       - aws configure set preview.cloudfront true
       - aws cloudfront create-invalidation --distribution-id "$distribution_id" --paths "/*" || echo "Failed to invalidate $distribution_id";
       - echo "Post-build phase completed."
