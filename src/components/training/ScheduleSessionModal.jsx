@@ -106,8 +106,10 @@ export default function ScheduleSessionModal({ client, onClose }) {
             }}
           />
         </div>
-        <LeadEmailField client={liveClient} />
-        {inviteEmail ? <p className="text-sm text-slate-500">Invite: {inviteEmail}</p> : null}
+        <div className="flex items-center gap-2 text-sm text-slate-600">
+          <span className="truncate">{inviteEmail ? `Invite: ${inviteEmail}` : 'No email on file'}</span>
+          <LeadEmailField client={liveClient} compact />
+        </div>
 
         {slots.map((slot, index) => (
           <div key={index} className="rounded border border-slate-200 p-3">

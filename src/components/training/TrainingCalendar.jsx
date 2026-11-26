@@ -5,12 +5,10 @@ import { useCrmStore } from '../../store/crmStore';
 import {
   TRAINING_STATUSES,
   WORK_TYPES,
-  clientLeadEmail,
   clientWorkType,
   formatDdMmYyyy,
   formatDdMmYyyyHm,
   isCancelledSession,
-  isValidLeadEmail,
   listTrainingTeam,
   normalizeCalendarId,
   normalizeTrainingStatus,
@@ -26,7 +24,7 @@ import {
 } from '../../utils/constants';
 import LeadEmailField from './LeadEmailField';
 import TrainerSelect, { ALL_TRAINERS } from './TrainerSelect';
-import TrainerStatusBoard from './TrainerStatusBoard';
+import TrainerStatusDrawer from './TrainerStatusDrawer';
 import WorkTypeSelect from './WorkTypeSelect';
 
 const START_HOUR = 8;
@@ -170,7 +168,7 @@ const writeDragPayload = (event, payload, effect = 'copy') => {
 
 export default function TrainingCalendar() {
   const { user, privileges, applyDirectory } = useAuth();
-  const { clients, leads, sessions, users, scheduleSessions, rescheduleSession, updateDirectoryUser } = useCrmStore();
+  const { clients, sessions, users, scheduleSessions, rescheduleSession, updateDirectoryUser } = useCrmStore();
   const team = useMemo(
     () => listTrainingTeam({ clients, sessions, users, extra: [user?.email], currentEmail: user?.email }),
     [clients, sessions, users, user?.email]
@@ -514,6 +512,14 @@ export default function TrainingCalendar() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <TrainerStatusDrawer
+            team={team}
+            clients={clients}
+            sessions={sessions}
+            currentEmail={user?.email}
+            selectedEmail={viewEmail}
+            onSelect={setViewEmail}
+          />
           <button
             type="button"
             className="rounded border border-slate-300 bg-white px-2 py-1.5"
@@ -591,15 +597,6 @@ export default function TrainingCalendar() {
       {error ? <p className="rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
       {busy ? <p className="text-sm text-slate-500">Updating calendar…</p> : null}
 
-      <TrainerStatusBoard
-        team={team}
-        clients={clients}
-        sessions={sessions}
-        currentEmail={user?.email}
-        selectedEmail={viewEmail}
-        onSelect={setViewEmail}
-      />
-
       <div
         className="grid min-h-0 items-stretch gap-4 lg:grid-cols-[240px_minmax(0,1fr)]"
         style={{ minHeight: MIN_CALENDAR_PX, height: `max(${MIN_CALENDAR_PX}px, calc(100vh - 14rem))` }}
@@ -642,6 +639,7 @@ export default function TrainingCalendar() {
                       : 'Unassigned'
                   }
                   sessionCount={sessions.filter((session) => session.Client_ID === client.Client_ID).length}
+                  emailEditor={privileges.canSetLeadEmail ? <LeadEmailField client={client} compact /> : null}
                   onSelect={() => setSelectedId((id) => (id === client.Client_ID ? '' : client.Client_ID))}
                   onPointerDown={(event) =>
                     startPointerDrag(event, {
@@ -653,12 +651,6 @@ export default function TrainingCalendar() {
                     })
                   }
                 />
-                {privileges.canSetLeadEmail &&
-                (selectedId === client.Client_ID || !isValidLeadEmail(clientLeadEmail(client, leads))) ? (
-                  <div className="mt-1 mb-1">
-                    <LeadEmailField client={client} compact />
-                  </div>
-                ) : null}
               </div>
             ))}
           </div>
@@ -781,7 +773,7 @@ function TrainerCalendarIdField({ trainer, busy, onSave }) {
   );
 }
 
-function ClientChip({ client, selected, sessionCount, trainerLabel, onSelect, onPointerDown }) {
+function ClientChip({ client, selected, sessionCount, trainerLabel, emailEditor, onSelect, onPointerDown }) {
   return (
     <div
       role="button"
@@ -800,7 +792,10 @@ function ClientChip({ client, selected, sessionCount, trainerLabel, onSelect, on
     >
       <GripVertical size={14} className="pointer-events-none mt-1 shrink-0 text-slate-400" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium">{client.Client_Name}</span>
+        <span className="flex items-start gap-1">
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">{client.Client_Name}</span>
+          {emailEditor}
+        </span>
         <span className="block truncate text-xs text-slate-500">{client.Contact_Email || 'No email'}</span>
         <span className="mt-1 flex flex-wrap items-center gap-1">
           <span className={`rounded px-1.5 py-0.5 text-[10px] ${workTypeColor(clientWorkType(client))}`}>
@@ -1037,7 +1032,12 @@ function SessionPopover({ session, client, onClose }) {
         </p>
         <p className="text-sm text-slate-500">{session.Trainer_Email}</p>
         {session.Calendar_ID ? <p className="text-xs text-slate-400">Calendar: {session.Calendar_ID}</p> : null}
-        {client ? <LeadEmailField client={client} /> : null}
+        {client ? (
+          <div className="mt-3 flex items-center gap-2 text-sm text-slate-600">
+            <span className="truncate">{client.Contact_Email || 'No email'}</span>
+            <LeadEmailField client={client} compact />
+          </div>
+        ) : null}
         {error ? <p className="mt-2 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
 
         <label className="mt-4 block text-sm">

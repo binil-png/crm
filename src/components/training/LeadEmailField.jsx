@@ -1,20 +1,33 @@
 import { useEffect, useState } from 'react';
+import { Pencil } from 'lucide-react';
 import { useCrmStore } from '../../store/crmStore';
 import { clientLeadEmail, isValidLeadEmail } from '../../utils/constants';
+import Modal from '../shared/Modal';
 
 export default function LeadEmailField({ client, compact = false }) {
   const { leads, setClientLeadEmail } = useCrmStore();
   const current = clientLeadEmail(client, leads);
+  const [open, setOpen] = useState(false);
   const [value, setValue] = useState(current);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     setValue(current);
     setError('');
-    setSaved(false);
   }, [client?.Client_ID, current]);
+
+  const stopBubble = (event) => {
+    event.stopPropagation();
+  };
+
+  const openPopup = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setValue(current);
+    setError('');
+    setOpen(true);
+  };
 
   const save = async (event) => {
     event.preventDefault();
@@ -22,10 +35,9 @@ export default function LeadEmailField({ client, compact = false }) {
     if (!client?.Client_ID) return;
     setBusy(true);
     setError('');
-    setSaved(false);
     try {
       await setClientLeadEmail(client.Client_ID, value);
-      setSaved(true);
+      setOpen(false);
     } catch (err) {
       setError(err.message || 'Could not save this email ID.');
     } finally {
@@ -33,45 +45,61 @@ export default function LeadEmailField({ client, compact = false }) {
     }
   };
 
-  const stopDrag = (event) => event.stopPropagation();
   const missing = !isValidLeadEmail(current);
   const unchanged = String(value || '').trim().toLowerCase() === current;
+  const label = current ? 'Edit email' : 'Add email';
 
   return (
-    <form
-      onSubmit={save}
-      onClick={stopDrag}
-      onMouseDown={stopDrag}
-      className={compact ? 'rounded-md border border-slate-200 bg-white p-2' : 'mt-3'}
-    >
-      <label className={`block ${compact ? 'text-[11px] text-slate-600' : 'text-sm'}`}>
-        Email
-        <input
-          type="email"
-          autoComplete="off"
-          placeholder="name@clinic.com"
-          className={`mt-1 w-full rounded border px-2 py-1.5 ${compact ? 'text-xs' : 'text-sm'} ${
-            missing ? 'border-amber-300 bg-amber-50' : 'border-slate-300 bg-white'
-          }`}
-          value={value}
-          onChange={(event) => {
-            setValue(event.target.value);
-            setSaved(false);
-            setError('');
-          }}
-        />
-      </label>
-      {error ? <p className={`mt-1 ${compact ? 'text-[11px]' : 'text-xs'} text-rose-700`}>{error}</p> : null}
-      {saved ? <p className={`mt-1 ${compact ? 'text-[11px]' : 'text-xs'} text-emerald-700`}>Email saved.</p> : null}
+    <>
       <button
-        type="submit"
-        disabled={busy || unchanged || !String(value || '').trim()}
-        className={`mt-2 rounded bg-sky-700 text-white disabled:opacity-50 ${
-          compact ? 'w-full px-2 py-1 text-[11px]' : 'px-3 py-1.5 text-sm'
-        }`}
+        type="button"
+        title={label}
+        aria-label={label}
+        onClick={openPopup}
+        onPointerDown={stopBubble}
+        onMouseDown={stopBubble}
+        className={`inline-flex shrink-0 items-center justify-center rounded text-slate-500 hover:bg-white hover:text-sky-800 ${
+          compact ? 'h-6 w-6' : 'h-7 w-7'
+        } ${missing ? 'text-amber-700 hover:text-amber-800' : ''}`}
       >
-        {busy ? 'Saving…' : current ? 'Save email' : 'Add email'}
+        <Pencil size={compact ? 13 : 15} />
       </button>
-    </form>
+      {open ? (
+        <Modal title={`${label} · ${client?.Client_Name || 'Client'}`} onClose={() => setOpen(false)}>
+          <form onSubmit={save} className="space-y-3">
+            <label className="block text-sm">
+              Email
+              <input
+                type="email"
+                autoComplete="off"
+                autoFocus
+                placeholder="name@clinic.com"
+                className={`mt-1 w-full rounded border px-3 py-2 text-sm ${
+                  missing && !value ? 'border-amber-300 bg-amber-50' : 'border-slate-300 bg-white'
+                }`}
+                value={value}
+                onChange={(event) => {
+                  setValue(event.target.value);
+                  setError('');
+                }}
+              />
+            </label>
+            {error ? <p className="text-sm text-rose-700">{error}</p> : null}
+            <div className="flex justify-end gap-2">
+              <button type="button" className="rounded border border-slate-300 px-3 py-2 text-sm" onClick={() => setOpen(false)}>
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={busy || unchanged || !String(value || '').trim()}
+                className="rounded bg-sky-700 px-3 py-2 text-sm text-white disabled:opacity-50"
+              >
+                {busy ? 'Saving…' : current ? 'Save email' : 'Add email'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
+    </>
   );
 }

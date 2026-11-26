@@ -19,7 +19,7 @@ import LeadEmailField from './LeadEmailField';
 import ScheduleSessionModal from './ScheduleSessionModal';
 import SessionList from './SessionList';
 import TrainerSelect, { ALL_TRAINERS } from './TrainerSelect';
-import TrainerStatusBoard from './TrainerStatusBoard';
+import TrainerStatusDrawer from './TrainerStatusDrawer';
 import WorkTypeSelect from './WorkTypeSelect';
 
 export default function ClientList() {
@@ -98,14 +98,9 @@ export default function ClientList() {
 
   return (
     <section>
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">Clients</h2>
-      </div>
-
-      {error ? <p className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
-
-      <div className="mb-4">
-        <TrainerStatusBoard
+        <TrainerStatusDrawer
           team={team}
           clients={clients}
           sessions={sessions}
@@ -114,6 +109,8 @@ export default function ClientList() {
           onSelect={setTrainerFilter}
         />
       </div>
+
+      {error ? <p className="mb-3 rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
 
       <div className="mb-3 max-w-sm">
         <TrainerSelect
@@ -182,7 +179,10 @@ export default function ClientList() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h3 className="font-medium">{client.Client_Name}</h3>
-                  <p className="text-sm text-slate-500">{client.Contact_Email || 'No email on file'}</p>
+                  <p className="flex items-center gap-1 text-sm text-slate-500">
+                    <span className="truncate">{client.Contact_Email || 'No email on file'}</span>
+                    {privileges.canSetLeadEmail && canEditClient ? <LeadEmailField client={client} compact /> : null}
+                  </p>
                   <p className="mt-1 text-xs text-slate-400">
                     {source
                       ? `From ${source._sheet} #${source['Sl No']} · ${source.Executive || 'Sales'} · ${source.Specialization || '—'}`
@@ -197,12 +197,6 @@ export default function ClientList() {
                   <span className={`rounded px-2 py-0.5 text-xs ${trainingColor(status)}`}>{status}</span>
                 </div>
               </div>
-
-              {privileges.canSetLeadEmail && canEditClient ? (
-                <div className="max-w-md">
-                  <LeadEmailField client={client} />
-                </div>
-              ) : null}
 
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 <label className="text-sm">
