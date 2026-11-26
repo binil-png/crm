@@ -10,7 +10,7 @@ import {
   normalizeTrainingStatus,
   sameEmail,
   sessionCancelReason,
-  sessionCancelledAt,
+  sessionCancelTimeLabel,
   sessionColor,
   sessionWorkType,
   trainingColor,
@@ -107,6 +107,9 @@ export default function SessionList({ clientId, compact = false }) {
                   <td className="px-3 py-2">
                     <p>{session.Session_Title}</p>
                     <p className="text-xs text-slate-500">{session.Session_ID}</p>
+                    {cancelled && sessionCancelTimeLabel(session) ? (
+                      <p className="text-xs text-rose-700">Cancelled {sessionCancelTimeLabel(session)}</p>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2">
                     <span className={`rounded px-2 py-0.5 text-xs ${workTypeColor(sessionWorkType(session))}`}>
@@ -128,10 +131,17 @@ export default function SessionList({ clientId, compact = false }) {
                     <span className={`rounded px-2 py-0.5 text-xs ${sessionColor(session.Status)}`}>{session.Status}</span>
                   </td>
                   <td className="px-3 py-2 text-rose-800">
-                    {cancelled ? formatDdMmYyyyHm(sessionCancelledAt(session)) || '—' : '—'}
+                    {cancelled ? sessionCancelTimeLabel(session) || '—' : '—'}
                   </td>
                   <td className="px-3 py-2 text-rose-800">
-                    {cancelled ? reason || 'No reason recorded' : '—'}
+                    {cancelled ? (
+                      <div>
+                        <p className="font-medium">{sessionCancelTimeLabel(session) || '—'}</p>
+                        <p>{reason || 'No reason recorded'}</p>
+                      </div>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                   <td className="px-3 py-2">
                     {cancelingId === session.Session_ID ? (

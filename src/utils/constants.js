@@ -795,6 +795,21 @@ export const sessionCancelReason = (session) => String(session?.Cancel_Reason ||
 
 export const sessionCancelledAt = (session) => String(session?.Cancelled_At || '').trim();
 
+export const sessionCancelTimeLabel = (session) => {
+  const cancelledAt = sessionCancelledAt(session);
+  if (cancelledAt && hasClockTime(cancelledAt)) {
+    return formatDdMmYyyyHm(cancelledAt) || cancelledAt;
+  }
+  const start = String(session?.Start_Time || '').trim();
+  const startLabel = start ? formatDdMmYyyyHm(start) || start : '';
+  if (cancelledAt) {
+    const datePart = formatDdMmYyyy(cancelledAt) || cancelledAt;
+    const clock = hasClockTime(startLabel) ? toTimeInput(start) || startLabel.split(' ').pop() : '';
+    return clock ? `${datePart} ${clock}` : datePart;
+  }
+  return startLabel;
+};
+
 export const nextPipelineStatus = (status) => (STATUS_NEXT[normalizeStatus(status)] || [])[0] || status;
 
 export const nextSalesActions = (status) => STATUS_NEXT[normalizeStatus(status)] || [];

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { GraduationCap, GripVertical } from 'lucide-react';
 import { useCrmStore } from '../../store/crmStore';
+import DropLoadingOverlay from '../shared/DropLoadingOverlay';
 import {
   findClientForLead,
   findLeadForClient,
@@ -25,7 +26,7 @@ const readPayload = (event) => {
   }
 };
 
-export default function TrainingDropBox({ leads }) {
+export default function TrainingDropBox({ leads, onBusyChange }) {
   const { clients, sessions, passToTraining } = useCrmStore();
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -47,6 +48,7 @@ export default function TrainingDropBox({ leads }) {
   );
 
   const handOff = async (lead) => {
+    if (busy) return;
     if (!lead) {
       setError('Drop a completed lead from the table.');
       return;
@@ -56,6 +58,7 @@ export default function TrainingDropBox({ leads }) {
       return;
     }
     setBusy(true);
+    onBusyChange?.(true);
     setError('');
     setMessage('');
     try {
@@ -65,12 +68,14 @@ export default function TrainingDropBox({ leads }) {
       setError(err.message || 'Could not pass this lead to training.');
     } finally {
       setBusy(false);
+      onBusyChange?.(false);
     }
   };
 
   const onDrop = async (event) => {
     event.preventDefault();
     setOver(false);
+    if (busy) return;
     const payload = readPayload(event);
     const lead =
       payload.kind === 'lead'
@@ -80,7 +85,7 @@ export default function TrainingDropBox({ leads }) {
   };
 
   return (
-    <aside className="rounded-lg border border-sky-200 bg-sky-50 p-3">
+    <aside className="relative rounded-lg border border-sky-200 bg-sky-50 p-3">
       <div className="mb-3 flex items-start gap-2">
         <GraduationCap size={18} className="mt-0.5 text-sky-700" />
         <div>
@@ -90,7 +95,7 @@ export default function TrainingDropBox({ leads }) {
 
       <div
         onDragOver={(event) => {
-          if (!isCompletedLeadDrag(event)) {
+          if (busy || !isCompletedLeadDrag(event)) {
             event.dataTransfer.dropEffect = 'none';
             setOver(false);
             return;
@@ -107,6 +112,7 @@ export default function TrainingDropBox({ leads }) {
       >
         {busy ? 'Passing to training…' : over ? 'Release to pass to training' : 'Drop a completed lead here'}
       </div>
+      <DropLoadingOverlay show={busy} label="Passing to training…" />
 
       {error ? <p className="mt-2 rounded bg-rose-50 p-2 text-xs text-rose-700">{error}</p> : null}
       {message ? <p className="mt-2 rounded bg-emerald-50 p-2 text-xs text-emerald-800">{message}</p> : null}

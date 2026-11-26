@@ -16,12 +16,14 @@ import {
   sameEmail,
   sessionCancelReason,
   sessionCancelledAt,
+  sessionCancelTimeLabel,
   sessionTitleForType,
   sessionWorkType,
   sessionColor,
   trainingColor,
   workTypeColor,
 } from '../../utils/constants';
+import DropLoadingOverlay from '../shared/DropLoadingOverlay';
 import LeadEmailField from './LeadEmailField';
 import TrainerSelect, { ALL_TRAINERS } from './TrainerSelect';
 import TrainerStatusDrawer from './TrainerStatusDrawer';
@@ -186,6 +188,7 @@ export default function TrainingCalendar() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [activeSession, setActiveSession] = useState(null);
+  const busyRef = useRef(false);
 
   const previewRef = useRef(null);
   const previewPos = useRef({ x: 0, y: 0 });
@@ -233,7 +236,7 @@ export default function TrainingCalendar() {
   };
 
   const startPointerDrag = (event, item) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || busyRef.current) return;
     dropHandledRef.current = false;
     suppressClickRef.current = false;
     pointerDragRef.current = {
@@ -313,7 +316,9 @@ export default function TrainingCalendar() {
   };
 
   const saveTrainerCalendarId = async (email, calendarId) => {
+    if (busyRef.current) return;
     setError('');
+    busyRef.current = true;
     setBusy(true);
     try {
       const next = await updateDirectoryUser(email, {
@@ -323,6 +328,7 @@ export default function TrainingCalendar() {
     } catch (err) {
       setError(err.message || 'Could not save the training calendar ID.');
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
@@ -338,8 +344,10 @@ export default function TrainingCalendar() {
   });
 
   const placeAt = async (day, hour, minute, payload) => {
+    if (busyRef.current) return;
     const start = atSlot(day, hour, minute);
     const end = new Date(start.getTime() + duration * 60 * 1000);
+    busyRef.current = true;
     setBusy(true);
     setError('');
     try {
@@ -385,6 +393,7 @@ export default function TrainingCalendar() {
     } catch (err) {
       setError(err.message);
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
@@ -502,7 +511,7 @@ export default function TrainingCalendar() {
       : 'Drop on a time slot';
 
   return (
-    <section className="flex flex-col gap-4">
+    <section className="relative flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs text-slate-500">
@@ -595,7 +604,6 @@ export default function TrainingCalendar() {
       </div>
 
       {error ? <p className="rounded bg-rose-50 p-2 text-sm text-rose-700">{error}</p> : null}
-      {busy ? <p className="text-sm text-slate-500">Updating calendar…</p> : null}
 
       <div
         className="grid min-h-0 items-stretch gap-4 lg:grid-cols-[240px_minmax(0,1fr)]"
@@ -733,6 +741,8 @@ export default function TrainingCalendar() {
           onClose={() => setActiveSession(null)}
         />
       ) : null}
+
+      <DropLoadingOverlay show={busy} label="Saving to calendar…" />
 
       {dragItem ? (
         <div
@@ -882,7 +892,7 @@ function DayColumn({
         const client = clients.find((item) => item.Client_ID === session.Client_ID);
         const cancelled = isCancelledSession(session);
         const reason = sessionCancelReason(session);
-        const cancelledAt = formatDdMmYyyyHm(sessionCancelledAt(session));
+        const cancelledAt = sessionCancelTimeLabel(session);
         const movable = isMovableSession(session);
         return (
           <div
@@ -1076,7 +1086,7 @@ function SessionPopover({ session, client, onClose }) {
 
         {isCancelledSession(session) ? (
           <p className="mt-3 rounded border border-rose-100 bg-rose-50 p-2 text-sm text-rose-800">
-            Cancelled{formatDdMmYyyyHm(sessionCancelledAt(session)) ? ` ${formatDdMmYyyyHm(sessionCancelledAt(session))}` : ''}:{' '}
+            Cancelled{sessionCancelTimeLabel(session) ? ` ${sessionCancelTimeLabel(session)}` : ''}:{' '}
             {sessionCancelReason(session) || 'No reason recorded'}
           </p>
         ) : null}

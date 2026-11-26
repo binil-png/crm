@@ -34,6 +34,7 @@ import TrainingDropBox from './TrainingDropBox';
 import ScheduleDateTimeFields from './ScheduleDateTimeFields';
 import Modal from '../shared/Modal';
 import Drawer from '../shared/Drawer';
+import DropLoadingOverlay from '../shared/DropLoadingOverlay';
 import PhoneActions from './PhoneActions';
 
 const PAGE_SIZE = 50;
@@ -74,6 +75,7 @@ export default function LeadKanban() {
   const [tableError, setTableError] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerTab, setDrawerTab] = useState('training');
+  const [dropBusy, setDropBusy] = useState(false);
   const skipRowClick = useRef(false);
 
   const sheetOptions = useMemo(() => {
@@ -191,7 +193,7 @@ export default function LeadKanban() {
   const drawerView = privileges.canPassToTraining ? drawerTab : 'calls';
 
   return (
-    <section className="w-full min-w-0">
+    <section className="relative w-full min-w-0">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Sales leads</h2>
@@ -451,7 +453,7 @@ export default function LeadKanban() {
               {overdueCount ? ` (${overdueCount})` : ''}
             </button>
           </div>
-          {drawerView === 'training' ? <TrainingDropBox leads={leads} /> : null}
+          {drawerView === 'training' ? <TrainingDropBox leads={leads} onBusyChange={setDropBusy} /> : null}
           {drawerView === 'calls' ? (
             <CallScheduleSidebar
               leads={leads}
@@ -514,6 +516,7 @@ export default function LeadKanban() {
       ) : null}
 
       {closing ? <SalesCloseModal lead={closing} onClose={() => setClosing(null)} /> : null}
+      <DropLoadingOverlay show={dropBusy} label="Passing to training…" />
     </section>
   );
 }
